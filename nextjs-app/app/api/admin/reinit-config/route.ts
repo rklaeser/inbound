@@ -18,8 +18,12 @@ function generateConfigurationId(): string {
 
 // Default baseline configuration settings
 const BASELINE_SETTINGS = {
-  autoRejectConfidenceThreshold: 0.9,
-  qualityLeadConfidenceThreshold: 0.7,
+  autoDeadLowValueThreshold: 0.9,        // Auto-dead low-value leads above this confidence
+  autoDeadIrrelevantThreshold: 0.95,     // Auto-dead irrelevant leads above this confidence
+  autoForwardDuplicateThreshold: 0.9,    // Auto-forward duplicates above this confidence
+  autoForwardSupportThreshold: 0.9,      // Auto-forward support requests above this confidence
+  autoSendQualityThreshold: 0.95,        // Auto-send quality emails above this confidence (future)
+  qualityLeadConfidenceThreshold: 0.7,   // Minimum confidence to classify as quality
 };
 
 const BASELINE_EMAIL_TEMPLATE = {
