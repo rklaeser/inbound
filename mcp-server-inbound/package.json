@@ -1,0 +1,23 @@
+{
+  "name": "inbound-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for debugging and managing the inbound lead qualification workflow",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.68",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "ai": "^5.0.95",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}
