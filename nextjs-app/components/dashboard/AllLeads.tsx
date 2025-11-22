@@ -260,17 +260,25 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                   >
                     {/* Test Result Indicator (Dev Mode Only) */}
                     {isDeveloperMode && isTestLead && (
-                      <TableCell className="py-2.5 w-12">
-                        <div className="flex items-center justify-center">
+                      <TableCell className="py-2.5 min-w-[200px]">
+                        <div className="flex items-center gap-2">
                           {testPassed ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" title="Test Passed" />
+                            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
                           ) : (
-                            <XCircle className="h-4 w-4 text-red-600" title={`Expected: ${lead.metadata?.expectedClassifications.join(' or ')}, Got: ${lead.classification || 'none'}`} />
+                            <XCircle className="h-4 w-4 text-red-600 shrink-0" />
                           )}
+                          <div className="flex flex-col gap-0.5 text-xs">
+                            <div className="text-muted-foreground">
+                              Expected: <span className="text-foreground">{lead.metadata?.expectedClassifications.join(' or ')}</span>
+                            </div>
+                            <div className="text-muted-foreground">
+                              Got: <span className={testPassed ? "text-green-600" : "text-red-600"}>{lead.classification || 'none'}</span>
+                            </div>
+                          </div>
                         </div>
                       </TableCell>
                     )}
-                    {isDeveloperMode && !isTestLead && <TableCell className="py-2.5 w-12" />}
+                    {isDeveloperMode && !isTestLead && <TableCell className="py-2.5 min-w-[200px]" />}
 
                     {/* Company & Name - Stacked */}
                     <TableCell className="py-2.5">

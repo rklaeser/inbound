@@ -10,15 +10,20 @@ import { z } from "zod";
 // Validation schema for updating a configuration
 const updateConfigurationSchema = z.object({
   settings: z.object({
-    autoRejectConfidenceThreshold: z.number().min(0).max(1),
-    qualityLeadConfidenceThreshold: z.number().min(0).max(1),
-  }).optional(),
-  prompts: z.object({
-    classification: z.string().min(10),
-    emailGeneration: z.string().min(10),
+    autoDeadLowValueThreshold: z.number().min(0).max(1).optional(),
+    autoDeadIrrelevantThreshold: z.number().min(0).max(1).optional(),
+    autoForwardDuplicateThreshold: z.number().min(0).max(1).optional(),
+    autoForwardSupportThreshold: z.number().min(0).max(1).optional(),
+    autoSendQualityThreshold: z.number().min(0).max(1).optional(),
+    qualityLeadConfidenceThreshold: z.number().min(0).max(1).optional(),
   }).optional(),
   emailTemplate: z.object({
     style: z.string().optional(),
+    subject: z.string().optional(),
+    greeting: z.string().optional(),
+    signOff: z.string().optional(),
+    callToAction: z.string().optional(),
+    lowValueCallToAction: z.string().optional(),
   }).optional(),
 });
 
