@@ -105,7 +105,7 @@ export default function Configurations() {
 
       if (data.success && data.configurations.length > 0) {
         const activeConfiguration = data.configurations[0];
-        setAutoRejectThreshold(activeConfiguration.settings.autoRejectConfidenceThreshold);
+        setAutoRejectThreshold(activeConfiguration.settings.autoDeadLowValueThreshold);
         setQualityThreshold(activeConfiguration.settings.qualityLeadConfidenceThreshold);
       }
     } catch (err) {
@@ -116,7 +116,7 @@ export default function Configurations() {
   };
 
   const handleClone = (configuration: Configuration) => {
-    setAutoRejectThreshold(configuration.settings.autoRejectConfidenceThreshold);
+    setAutoRejectThreshold(configuration.settings.autoDeadLowValueThreshold);
     setQualityThreshold(configuration.settings.qualityLeadConfidenceThreshold);
     setShowEditor(true);
   };
@@ -217,7 +217,11 @@ export default function Configurations() {
         body: JSON.stringify({
           status: 'draft',
           settings: {
-            autoRejectConfidenceThreshold: autoRejectThreshold,
+            autoDeadLowValueThreshold: autoRejectThreshold,
+            autoDeadIrrelevantThreshold: autoRejectThreshold,
+            autoForwardDuplicateThreshold: 0.9,
+            autoForwardSupportThreshold: 0.9,
+            autoSendQualityThreshold: 0.9,
             qualityLeadConfidenceThreshold: qualityThreshold,
           },
           emailTemplate: {},
@@ -255,7 +259,11 @@ export default function Configurations() {
         body: JSON.stringify({
           status: 'active',
           settings: {
-            autoRejectConfidenceThreshold: autoRejectThreshold,
+            autoDeadLowValueThreshold: autoRejectThreshold,
+            autoDeadIrrelevantThreshold: autoRejectThreshold,
+            autoForwardDuplicateThreshold: 0.9,
+            autoForwardSupportThreshold: 0.9,
+            autoSendQualityThreshold: 0.9,
             qualityLeadConfidenceThreshold: qualityThreshold,
           },
           emailTemplate: {},
@@ -431,14 +439,34 @@ export default function Configurations() {
               <h3 className="text-xl font-bold text-gray-900 mb-4">Threshold Settings</h3>
               <div className="space-y-4">
                 <ConfigItem
-                  label="Auto-Reject Confidence Threshold"
-                  value={selectedConfiguration.settings.autoRejectConfidenceThreshold}
-                  description="Leads classified as low-value with confidence above this threshold are automatically rejected"
+                  label="Auto-Dead Low-Value Threshold"
+                  value={selectedConfiguration.settings.autoDeadLowValueThreshold}
+                  description="Leads classified as low-value with confidence above this threshold are automatically marked as dead"
+                />
+                <ConfigItem
+                  label="Auto-Dead Irrelevant Threshold"
+                  value={selectedConfiguration.settings.autoDeadIrrelevantThreshold}
+                  description="Leads classified as irrelevant with confidence above this threshold are automatically marked as dead"
+                />
+                <ConfigItem
+                  label="Auto-Forward Duplicate Threshold"
+                  value={selectedConfiguration.settings.autoForwardDuplicateThreshold}
+                  description="Duplicate leads with confidence above this threshold are automatically forwarded"
+                />
+                <ConfigItem
+                  label="Auto-Forward Support Threshold"
+                  value={selectedConfiguration.settings.autoForwardSupportThreshold}
+                  description="Support requests with confidence above this threshold are automatically forwarded"
+                />
+                <ConfigItem
+                  label="Auto-Send Quality Threshold"
+                  value={selectedConfiguration.settings.autoSendQualityThreshold}
+                  description="Quality leads with confidence above this threshold are automatically sent (future feature)"
                 />
                 <ConfigItem
                   label="Quality Lead Confidence Threshold"
                   value={selectedConfiguration.settings.qualityLeadConfidenceThreshold}
-                  description="Leads with confidence above this threshold automatically get email drafts generated"
+                  description="Minimum confidence to classify a lead as quality (not for auto-action)"
                 />
               </div>
             </div>
@@ -500,8 +528,8 @@ export default function Configurations() {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lead.status)}`}>
-                            {lead.status}
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lead.outcome || 'pending')}`}>
+                            {lead.outcome || 'pending'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -775,9 +803,9 @@ function ConfigurationCard({
           {/* Quick Stats */}
           <div className="mt-4 flex items-center gap-6 text-sm">
             <div>
-              <span className="text-gray-500">Auto-Reject:</span>{' '}
+              <span className="text-gray-500">Auto-Dead Low-Value:</span>{' '}
               <span className="font-medium text-gray-900">
-                {configuration.settings.autoRejectConfidenceThreshold}
+                {configuration.settings.autoDeadLowValueThreshold}
               </span>
             </div>
             <div>
@@ -1001,14 +1029,13 @@ function getClassificationColor(classification: string): string {
 
 function getStatusColor(status: string): string {
   const colors: { [key: string]: string } = {
-    researching: 'bg-blue-100 text-blue-800',
-    qualifying: 'bg-blue-100 text-blue-800',
-    generating: 'bg-blue-100 text-blue-800',
-    review: 'bg-yellow-100 text-yellow-800',
-    sent: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
+    pending: 'bg-blue-100 text-blue-800',
+    sent_meeting_offer: 'bg-green-100 text-green-800',
+    sent_generic: 'bg-green-100 text-green-800',
+    dead: 'bg-red-100 text-red-800',
+    forwarded_account_team: 'bg-purple-100 text-purple-800',
+    forwarded_support: 'bg-purple-100 text-purple-800',
     error: 'bg-red-100 text-red-800',
-    forwarded: 'bg-purple-100 text-purple-800',
   };
   return colors[status] || 'bg-gray-100 text-gray-800';
 }

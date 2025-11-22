@@ -19,7 +19,11 @@ function generateConfigurationId(): string {
 // Validation schema for creating a configuration
 const createConfigurationSchema = z.object({
   settings: z.object({
-    autoRejectConfidenceThreshold: z.number().min(0).max(1),
+    autoDeadLowValueThreshold: z.number().min(0).max(1),
+    autoDeadIrrelevantThreshold: z.number().min(0).max(1),
+    autoForwardDuplicateThreshold: z.number().min(0).max(1),
+    autoForwardSupportThreshold: z.number().min(0).max(1),
+    autoSendQualityThreshold: z.number().min(0).max(1),
     qualityLeadConfidenceThreshold: z.number().min(0).max(1),
   }),
   emailTemplate: z.object({
@@ -28,6 +32,7 @@ const createConfigurationSchema = z.object({
     greeting: z.string().min(1).optional(),
     signOff: z.string().min(1).optional(),
     callToAction: z.string().min(1).optional(),
+    lowValueCallToAction: z.string().min(1).optional(),
   }).optional(),
   status: z.enum(['draft', 'active']).default('draft'),
 });

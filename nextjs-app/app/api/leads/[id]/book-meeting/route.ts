@@ -42,7 +42,7 @@ export async function POST(
     }
 
     // Check if email was sent
-    if (leadData.status !== 'sent') {
+    if (leadData.outcome !== 'sent_meeting_offer' && leadData.outcome !== 'sent_generic') {
       return NextResponse.json(
         {
           success: false,

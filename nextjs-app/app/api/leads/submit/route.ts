@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const leadData: LeadFormData = validationResult.data;
+    const leadData = validationResult.data;
 
     // Get active configuration to tag this lead with
     let activeConfiguration;

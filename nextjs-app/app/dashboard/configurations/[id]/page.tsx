@@ -229,14 +229,34 @@ export default function ConfigurationDetailPage({
               </CardHeader>
               <CardContent className="space-y-4">
                 <ConfigItem
-                  label="Auto-Reject Confidence Threshold"
-                  value={configuration.settings.autoRejectConfidenceThreshold}
-                  description="Leads classified as low-value with confidence above this threshold are automatically rejected"
+                  label="Auto-Dead Low-Value Threshold"
+                  value={configuration.settings.autoDeadLowValueThreshold}
+                  description="Leads classified as low-value with confidence above this threshold are automatically marked as dead"
+                />
+                <ConfigItem
+                  label="Auto-Dead Irrelevant Threshold"
+                  value={configuration.settings.autoDeadIrrelevantThreshold}
+                  description="Leads classified as irrelevant with confidence above this threshold are automatically marked as dead"
+                />
+                <ConfigItem
+                  label="Auto-Forward Duplicate Threshold"
+                  value={configuration.settings.autoForwardDuplicateThreshold}
+                  description="Duplicate leads with confidence above this threshold are automatically forwarded"
+                />
+                <ConfigItem
+                  label="Auto-Forward Support Threshold"
+                  value={configuration.settings.autoForwardSupportThreshold}
+                  description="Support requests with confidence above this threshold are automatically forwarded"
+                />
+                <ConfigItem
+                  label="Auto-Send Quality Threshold"
+                  value={configuration.settings.autoSendQualityThreshold}
+                  description="Quality leads with confidence above this threshold are automatically sent (future feature)"
                 />
                 <ConfigItem
                   label="Quality Lead Confidence Threshold"
                   value={configuration.settings.qualityLeadConfidenceThreshold}
-                  description="Leads with confidence above this threshold automatically get email drafts generated"
+                  description="Minimum confidence to classify a lead as quality (not for auto-action)"
                 />
               </CardContent>
             </Card>
@@ -374,8 +394,8 @@ export default function ConfigurationDetailPage({
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge variant={getStatusVariant(lead.status)}>
-                              {lead.status}
+                            <Badge variant={getStatusVariant(lead.outcome || 'pending')}>
+                              {lead.outcome || 'pending'}
                             </Badge>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
@@ -461,14 +481,13 @@ function getClassificationVariant(classification: string): 'default' | 'secondar
 
 function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   const variants: { [key: string]: 'default' | 'secondary' | 'destructive' | 'outline' } = {
-    researching: 'secondary',
-    qualifying: 'secondary',
-    generating: 'secondary',
-    review: 'outline',
-    sent: 'default',
-    rejected: 'destructive',
+    pending: 'secondary',
+    sent_meeting_offer: 'default',
+    sent_generic: 'default',
+    dead: 'destructive',
+    forwarded_account_team: 'outline',
+    forwarded_support: 'outline',
     error: 'destructive',
-    forwarded: 'outline',
   };
   return variants[status] || 'outline';
 }

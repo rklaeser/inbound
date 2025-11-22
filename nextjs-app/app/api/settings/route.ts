@@ -10,7 +10,10 @@ const SETTINGS_DOC_ID = "system";
 
 // Default settings
 const DEFAULT_SETTINGS: SystemSettings = {
-  autoRejectConfidenceThreshold: 0.9,
+  autoDeadLowValueThreshold: 0.9,
+  autoForwardDuplicateThreshold: 0.9,
+  autoForwardSupportThreshold: 0.9,
+  autoSendQualityThreshold: 0.9,
   qualityLeadConfidenceThreshold: 0.7,
   sdr: {
     name: 'Ryan',
@@ -20,7 +23,10 @@ const DEFAULT_SETTINGS: SystemSettings = {
 
 // Validation schema
 const settingsSchema = z.object({
-  autoRejectConfidenceThreshold: z.number().min(0).max(1),
+  autoDeadLowValueThreshold: z.number().min(0).max(1),
+  autoForwardDuplicateThreshold: z.number().min(0).max(1),
+  autoForwardSupportThreshold: z.number().min(0).max(1),
+  autoSendQualityThreshold: z.number().min(0).max(1),
   qualityLeadConfidenceThreshold: z.number().min(0).max(1),
   sdr: z.object({
     name: z.string().min(1, 'SDR name is required'),
@@ -52,7 +58,10 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       settings: {
-        autoRejectConfidenceThreshold: settings.autoRejectConfidenceThreshold,
+        autoDeadLowValueThreshold: settings.autoDeadLowValueThreshold,
+        autoForwardDuplicateThreshold: settings.autoForwardDuplicateThreshold,
+        autoForwardSupportThreshold: settings.autoForwardSupportThreshold,
+        autoSendQualityThreshold: settings.autoSendQualityThreshold,
         qualityLeadConfidenceThreshold: settings.qualityLeadConfidenceThreshold,
         sdr
       },

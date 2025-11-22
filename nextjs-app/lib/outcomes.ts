@@ -194,6 +194,6 @@ export const ACTIVE_OUTCOMES = Object.values(OUTCOMES)
   .filter(o => o.key !== null)
   .sort((a, b) => {
     // Sort order: pending, sent_meeting_offer, sent_generic, dead, forwarded_account_team, forwarded_support, error
-    const order = { pending: 0, sent_meeting_offer: 1, sent_generic: 2, dead: 3, forwarded_account_team: 4, forwarded_support: 5, error: 6 };
-    return order[a.key as string] - order[b.key as string];
+    const order: Record<string, number> = { pending: 0, sent_meeting_offer: 1, sent_generic: 2, dead: 3, forwarded_account_team: 4, forwarded_support: 5, error: 6 };
+    return (order[a.key as string] ?? 999) - (order[b.key as string] ?? 999);
   });

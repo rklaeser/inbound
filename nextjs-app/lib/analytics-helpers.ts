@@ -237,7 +237,7 @@ export async function logLeadForwardedEvent(
       forwarded_to: forwardedTo,
       forwarded_by: forwardedBy,
       original_classification: lead.classification,
-      original_status: lead.status,
+      original_status: lead.outcome,
     }
   );
 }

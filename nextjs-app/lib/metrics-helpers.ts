@@ -31,11 +31,11 @@ export async function calculateConfigurationMetrics(
   const emailsGenerated = leadsWithEmails.length;
 
   // Leads where email was sent (approved)
-  const sentLeads = leads.filter((lead) => lead.status === "sent");
+  const sentLeads = leads.filter((lead) => lead.outcome === "sent_meeting_offer" || lead.outcome === "sent_generic");
   const emailsSent = sentLeads.length;
 
   // Leads that were rejected
-  const rejectedLeads = leads.filter((lead) => lead.status === "dead");
+  const rejectedLeads = leads.filter((lead) => lead.outcome === "dead");
   const emailsRejected = rejectedLeads.length;
 
   // Calculate approval rate: (sent / generated) * 100

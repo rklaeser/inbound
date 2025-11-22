@@ -2,7 +2,10 @@ import { adminDb } from './firestore-server';
 import type { SystemSettings } from './types';
 
 export const DEFAULT_ACCOUNT_SETTINGS: SystemSettings = {
-  autoRejectConfidenceThreshold: 0.9,
+  autoDeadLowValueThreshold: 0.9,
+  autoForwardDuplicateThreshold: 0.9,
+  autoForwardSupportThreshold: 0.9,
+  autoSendQualityThreshold: 0.9,
   qualityLeadConfidenceThreshold: 0.7,
   sdr: {
     name: 'Ryan',

@@ -124,7 +124,7 @@ export async function PATCH(
     }
 
     // Update the configuration
-    const updateData: Partial<Configuration> = {
+    const updateData = {
       ...data,
     };
 

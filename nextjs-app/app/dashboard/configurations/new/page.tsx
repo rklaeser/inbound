@@ -20,7 +20,7 @@ export default function NewConfigurationPage() {
     if (cloneData) {
       try {
         const configuration: Configuration = JSON.parse(cloneData);
-        setAutoRejectThreshold(configuration.settings.autoRejectConfidenceThreshold);
+        setAutoRejectThreshold(configuration.settings.autoDeadLowValueThreshold);
         setQualityThreshold(configuration.settings.qualityLeadConfidenceThreshold);
         setEmailSubject(configuration.emailTemplate?.subject || 'Hi from Vercel');
         setGreeting(configuration.emailTemplate?.greeting || 'Hi {firstName},');
@@ -45,7 +45,7 @@ export default function NewConfigurationPage() {
 
       if (data.success && data.configurations.length > 0) {
         const activeConfiguration = data.configurations[0];
-        setAutoRejectThreshold(activeConfiguration.settings.autoRejectConfidenceThreshold);
+        setAutoRejectThreshold(activeConfiguration.settings.autoDeadLowValueThreshold);
         setQualityThreshold(activeConfiguration.settings.qualityLeadConfidenceThreshold);
         setEmailSubject(activeConfiguration.emailTemplate?.subject || 'Hi from Vercel');
         setGreeting(activeConfiguration.emailTemplate?.greeting || 'Hi {firstName},');
@@ -68,7 +68,11 @@ export default function NewConfigurationPage() {
         body: JSON.stringify({
           status: 'draft',
           settings: {
-            autoRejectConfidenceThreshold: autoRejectThreshold,
+            autoDeadLowValueThreshold: autoRejectThreshold,
+            autoDeadIrrelevantThreshold: autoRejectThreshold,
+            autoForwardDuplicateThreshold: 0.9,
+            autoForwardSupportThreshold: 0.9,
+            autoSendQualityThreshold: 0.9,
             qualityLeadConfidenceThreshold: qualityThreshold,
           },
           emailTemplate: {
@@ -111,7 +115,11 @@ export default function NewConfigurationPage() {
         body: JSON.stringify({
           status: 'active',
           settings: {
-            autoRejectConfidenceThreshold: autoRejectThreshold,
+            autoDeadLowValueThreshold: autoRejectThreshold,
+            autoDeadIrrelevantThreshold: autoRejectThreshold,
+            autoForwardDuplicateThreshold: 0.9,
+            autoForwardSupportThreshold: 0.9,
+            autoSendQualityThreshold: 0.9,
             qualityLeadConfidenceThreshold: qualityThreshold,
           },
           emailTemplate: {

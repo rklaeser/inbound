@@ -18,7 +18,7 @@ export interface WorkflowResult {
   qualification: ClassificationResult;
   email: EmailGenerationResult | null;
   autonomy: 'review' | 'auto';
-  outcome: 'pending' | 'dead' | 'forwarded';
+  outcome: 'pending' | 'dead' | 'forwarded_account_team' | 'forwarded_support';
 }
 
 /**
