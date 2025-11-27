@@ -1,8 +1,8 @@
-import type { LeadClassification } from './types';
+import type { Classification } from './types';
 
 export interface TestCase {
   label: string;
-  expectedClassification: readonly LeadClassification[];
+  expectedClassification: readonly Classification[];
   data: {
     name: string;
     email: string;
@@ -24,7 +24,7 @@ export const testData = {
   },
   fake: {
     label: 'Fake Company',
-    expectedClassification: ['low-value', 'uncertain'] as const,
+    expectedClassification: ['low-quality'] as const,
     data: {
       name: 'John Doe',
       email: 'john.doe@nonexistentcompany123.com',
@@ -34,7 +34,7 @@ export const testData = {
   },
   quality: {
     label: 'Quality Lead',
-    expectedClassification: ['quality'] as const,
+    expectedClassification: ['high-quality'] as const,
     data: {
       name: 'Jennifer Martinez',
       email: 'jennifer.martinez@shopify.com',
@@ -44,7 +44,7 @@ export const testData = {
   },
   weak: {
     label: 'Weak Lead',
-    expectedClassification: ['low-value'] as const,
+    expectedClassification: ['low-quality'] as const,
     data: {
       name: 'Bob Smith',
       email: 'bob@fakecorp12345.com',
@@ -64,7 +64,7 @@ export const testData = {
   },
   appleQuality: {
     label: 'Apple COO (Quality)',
-    expectedClassification: ['quality'] as const,
+    expectedClassification: ['high-quality'] as const,
     data: {
       name: 'Sabih Khan',
       email: 'sabih.khan@apple.com',
@@ -74,7 +74,7 @@ export const testData = {
   },
   appleWeak: {
     label: 'Apple Researcher (Weak)',
-    expectedClassification: ['low-value', 'uncertain'] as const,
+    expectedClassification: ['low-quality'] as const,
     data: {
       name: 'Matthias Mueller',
       email: 'matthias.mueller@apple.com',
@@ -84,12 +84,22 @@ export const testData = {
   },
   appleAmbiguous: {
     label: 'Apple Employee (Ambiguous)',
-    expectedClassification: ['uncertain'] as const,
+    expectedClassification: ['low-quality'] as const,
     data: {
       name: 'Michael Wu',
       email: 'michael.wu@apple.com',
       company: 'Apple',
       message: 'We\'re interested in learning more about your platform for potential use at Apple. Could you share some information about your enterprise capabilities?',
+    },
+  },
+  mcmasterCarr: {
+    label: 'McMaster-Carr (Quality)',
+    expectedClassification: ['high-quality'] as const,
+    data: {
+      name: 'Nina Shirole',
+      email: 'nina.shirole@mcmaster.com',
+      company: 'McMaster-Carr',
+      message: 'We are a large company that has historically had our own data centers and we\'re looking into using Vercel to make it cheaper and faster to deploy our internal websites. We\'d like to discuss how Vercel could help us modernize our deployment infrastructure.',
     },
   },
 } as const;

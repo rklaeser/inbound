@@ -3,11 +3,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firestore-admin";
-import type { LeadFormData } from "@/lib/types";
+import type { LeadFormData, Lead, Classification } from "@/lib/types";
 import { z } from "zod";
 import { start } from "workflow/api";
 import { workflowInbound } from "@/workflows/inbound";
-import { getActiveConfiguration } from "@/lib/configuration-helpers";
 
 // Validation schema
 const leadFormSchema = z.object({
@@ -40,145 +39,128 @@ export async function POST(request: NextRequest) {
     }
 
     const leadData = validationResult.data;
+    const now = new Date();
 
-    // Get active configuration to tag this lead with
-    let activeConfiguration;
-    try {
-      activeConfiguration = await getActiveConfiguration();
-    } catch (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "System is not configured. Please contact support.",
-        },
-        { status: 503 } // Service Unavailable
-      );
-    }
+    // Create initial lead document with new data model
+    const initialLead: Omit<Lead, 'id'> = {
+      // Submission data
+      submission: {
+        leadName: leadData.name,
+        email: leadData.email,
+        company: leadData.company,
+        message: leadData.message,
+      },
+
+      // Bot outputs (null until workflow completes)
+      bot_research: null,
+      bot_text: null,
+      bot_rollout: null,
+
+      // Human edits (null until edited)
+      human_edits: null,
+
+      // Status
+      status: {
+        status: 'review',  // Start in review, workflow may change to done
+        received_at: now,
+        sent_at: null,
+        sent_by: null,
+      },
+
+      // Classification history (empty until workflow completes)
+      classifications: [],
+
+      // Test metadata (optional)
+      ...(leadData.metadata && {
+        metadata: {
+          isTestLead: leadData.metadata.isTestLead,
+          testCase: leadData.metadata.testCase,
+          expectedClassifications: leadData.metadata.expectedClassifications as Classification[],
+        }
+      }),
+    };
 
     // Create lead document in Firestore
-    const leadRef = await adminDb.collection("leads").add({
-      // Lead information
-      name: leadData.name,
-      email: leadData.email,
-      company: leadData.company,
-      message: leadData.message,
-
-      // Classification (initially null)
-      classification: null,
-      confidence_score: null,
-      reasoning: null,
-
-      // Research data (initially null)
-      research_report: null,
-      person_job_title: null,
-      person_linkedin_url: null,
-
-      // Email generation (initially null)
-      generated_email_subject: null,
-      generated_email_body: null,
-      final_email_subject: null,
-      final_email_body: null,
-      edited: false,
-
-      // New data model - autonomy and outcome (initially null = processing)
-      autonomy: null,
-      outcome: null,
-
-      // Configuration tracking
-      configuration_id: activeConfiguration.id,
-
-      // Test metadata (optional - only for test leads)
-      ...(leadData.metadata && { metadata: leadData.metadata }),
-
-      // Timestamps
-      created_at: new Date(),
-      classified_at: null,
-      reviewed_at: null,
-      edited_at: null,
-      closed_at: null,
-      meeting_booked_at: null,
-
-      // Attribution tracking
-      reviewed_by: null,
-      edited_by: null,
-      closed_by: null,
-      forwarded_to: null,
-    });
-
+    const leadRef = await adminDb.collection("leads").add(initialLead);
     const leadId = leadRef.id;
 
-    // Trigger workflow asynchronously and handle completion
-    // start() returns a Run handle - we need to await run.returnValue to get the actual result
+    // Trigger workflow asynchronously
     start(workflowInbound, [leadData])
       .then(async (run) => {
         console.log(`[API] Workflow started with run ID: ${run.runId}`);
-
-        // Poll for the workflow result
         return run.returnValue;
       })
       .then(async (result) => {
         console.log(`[API] Workflow completed for lead ${leadId}`);
 
-        // Validate result before processing
-        if (!result || !result.qualification) {
+        // Validate result
+        if (!result || !result.bot_research) {
           console.error(`[API] Workflow returned invalid result for lead ${leadId}:`, result);
+          // Mark as needing review with error note
           await adminDb.collection("leads").doc(leadId).update({
-            outcome: "error",
-            error_message: "Workflow returned invalid result",
-            updated_at: new Date(),
+            'status.status': 'review',
           });
           return;
         }
 
-        // Workflow completed successfully - write all results to Firestore
-        const updateData: any = {
-          // Research results
-          research_report: result.research.report,
-          person_job_title: result.research.jobTitle,
-          person_linkedin_url: result.research.linkedinUrl,
-
-          // Classification results
-          classification: result.qualification.classification,
-          confidence_score: result.qualification.confidence,
-          reasoning: result.qualification.reasoning,
-          classified_at: new Date(),
-
-          // Autonomy and outcome (replaces status)
-          autonomy: result.autonomy,
-          outcome: result.outcome,
-
-          // Timestamps
-          updated_at: new Date(),
+        // Build bot classification entry
+        const botClassification = {
+          author: 'bot' as const,
+          classification: result.bot_research.classification,
+          timestamp: result.bot_research.timestamp,
+          needs_review: result.needs_review,
+          applied_threshold: result.applied_threshold,
         };
 
-        // Add email data if generated
-        if (result.email) {
-          updateData.generated_email_subject = result.email.subject;
-          updateData.generated_email_body = result.email.body;
-        }
+        // Build bot rollout info
+        const bot_rollout = {
+          rollOut: result.applied_threshold,  // Store the threshold used
+          useBot: result.status === 'done',   // true if auto-sent
+        };
 
-        await adminDb.collection("leads").doc(leadId).update(updateData);
+        // Update lead with workflow results
+        // Note: bot_text now contains only the AI-generated body content
+        // Full email is assembled at display/send time using templates from configuration
+        await adminDb.collection("leads").doc(leadId).update({
+          // Bot research
+          bot_research: result.bot_research,
+
+          // Bot text (AI-generated body content only)
+          bot_text: result.bot_text,
+
+          // Bot rollout decision
+          bot_rollout: bot_rollout,
+
+          // Status
+          'status.status': result.status,
+          'status.sent_at': result.sent_at,
+          'status.sent_by': result.sent_by,
+
+          // Add bot classification to history
+          classifications: [botClassification],
+        });
 
         // Log analytics events
-        const leadDoc = await adminDb.collection("leads").doc(leadId).get();
-        const leadWithResults = { id: leadDoc.id, ...leadDoc.data() };
-
         const { logClassificationEvent, logEmailGenerationEvent } = await import('@/lib/analytics-helpers');
+
+        // Get updated lead for analytics
+        const leadDoc = await adminDb.collection("leads").doc(leadId).get();
+        const leadWithResults = { id: leadDoc.id, ...leadDoc.data() } as Lead;
 
         // Log classification event
         await logClassificationEvent(
-          leadWithResults as any,
-          result.qualification.classification,
-          result.qualification.confidence,
-          result.qualification.reasoning
+          leadWithResults,
+          result.bot_research.classification,
+          result.bot_research.confidence,
+          result.bot_research.reasoning
         );
 
-        // Log email generation event if email was generated
-        if (result.email) {
+        // Log email generation event if emails were generated
+        if (result.bot_text) {
           await logEmailGenerationEvent(
-            leadWithResults as any,
-            result.email.subject,
-            result.email.body
+            leadWithResults,
+            'Generated',  // Subject placeholder
+            result.bot_text.highQualityText
           );
         }
 
@@ -186,12 +168,7 @@ export async function POST(request: NextRequest) {
       })
       .catch(async (error) => {
         console.error(`[API] Workflow failed for lead ${leadId}:`, error);
-        // Update lead outcome to error with error message for debugging
-        await adminDb.collection("leads").doc(leadId).update({
-          outcome: "error",
-          error_message: error.message || "Unknown workflow error",
-          updated_at: new Date(),
-        });
+        // Keep lead in review state - human will need to handle
       });
 
     return NextResponse.json({

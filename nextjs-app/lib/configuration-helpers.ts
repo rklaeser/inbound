@@ -1,116 +1,187 @@
 // Helper functions for configuration operations
 
 import { adminDb } from "./firestore-admin";
-import type { Configuration } from "./types";
+import type { Configuration, Classification } from "./types";
+import { DEFAULT_CONFIGURATION } from "./types";
 
-// Cache for active configuration (revalidated every 60 seconds)
-let activeConfigurationCache: {
-  configuration: Configuration | null;
-  timestamp: number;
-} = {
-  configuration: null,
-  timestamp: 0,
-};
-
+// Simple cache for configuration
+let configCache: Configuration | null = null;
+let cacheTimestamp = 0;
 const CACHE_DURATION_MS = 60 * 1000; // 60 seconds
 
 /**
- * Get the currently active configuration
- * Results are cached for 60 seconds to improve performance
- * Throws an error if no active configuration exists
+ * Get the system configuration
+ * Cached for 60 seconds to improve performance
  */
-export async function getActiveConfiguration(): Promise<Configuration> {
+export async function getConfiguration(): Promise<Configuration> {
   const now = Date.now();
 
-  // Return cached configuration if still valid
-  if (
-    activeConfigurationCache.configuration &&
-    now - activeConfigurationCache.timestamp < CACHE_DURATION_MS
-  ) {
-    return activeConfigurationCache.configuration;
+  // Return cached if valid
+  if (configCache && now - cacheTimestamp < CACHE_DURATION_MS) {
+    return configCache;
   }
 
-  try {
-    const snapshot = await adminDb
-      .collection("configurations")
-      .where("status", "==", "active")
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      throw new Error("No active configuration found. Please initialize a configuration first.");
-    }
-
-    const doc = snapshot.docs[0];
-    const configuration: Configuration = {
-      id: doc.id,
-      ...doc.data(),
-    } as Configuration;
-
-    // Update cache
-    activeConfigurationCache = {
-      configuration,
-      timestamp: now,
-    };
-
-    return configuration;
-  } catch (error) {
-    console.error("Error fetching active configuration:", error);
-    throw error; // Re-throw so calling code can handle it
-  }
-}
-
-/**
- * Invalidate the active configuration cache
- * Call this after activating or archiving a configuration
- */
-export function invalidateConfigurationCache() {
-  activeConfigurationCache = {
-    configuration: null,
-    timestamp: 0,
-  };
-}
-
-/**
- * Get a specific configuration by ID
- */
-export async function getConfigurationById(id: string): Promise<Configuration | null> {
   try {
     const doc = await adminDb
-      .collection("configurations")
-      .doc(id)
+      .collection('settings')
+      .doc('configuration')
       .get();
 
     if (!doc.exists) {
-      return null;
+      // Initialize default configuration if missing
+      await initializeConfiguration();
+      return getConfiguration();
     }
 
-    return {
-      id: doc.id,
-      ...doc.data(),
-    } as Configuration;
+    const configuration = doc.data() as Configuration;
+
+    // Update cache
+    configCache = configuration;
+    cacheTimestamp = now;
+
+    return configuration;
   } catch (error) {
-    console.error("Error fetching configuration:", error);
-    return null;
+    console.error('Error fetching configuration:', error);
+    throw error;
   }
 }
 
 /**
- * Get configuration settings
+ * Update system configuration
  */
-export async function getConfigurationSettings() {
-  const configuration = await getActiveConfiguration();
-  return configuration.settings;
+export async function updateConfiguration(
+  updates: Partial<Configuration>,
+  updatedBy: string = 'system'
+): Promise<void> {
+  try {
+    await adminDb
+      .collection('settings')
+      .doc('configuration')
+      .update({
+        ...updates,
+        updated_at: new Date(),
+        updated_by: updatedBy,
+      });
+
+    // Invalidate cache
+    invalidateConfigurationCache();
+
+    console.log('Configuration updated successfully');
+  } catch (error) {
+    console.error('Error updating configuration:', error);
+    throw error;
+  }
 }
 
 /**
- * Get AI prompts
- * Always returns prompts from code (single source of truth)
+ * Initialize default configuration (for new setups)
+ */
+export async function initializeConfiguration(): Promise<void> {
+  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT, GENERIC_EMAIL_PROMPT } = await import('./prompts');
+
+  const defaultConfig: Configuration = {
+    ...DEFAULT_CONFIGURATION,
+    prompts: {
+      classification: CLASSIFICATION_PROMPT,
+      emailHighQuality: EMAIL_GENERATION_PROMPT,
+      emailLowQuality: '', // No longer used - low-quality leads use static template
+      emailGeneric: GENERIC_EMAIL_PROMPT,
+    },
+    updated_at: new Date(),
+    updated_by: 'system',
+  };
+
+  await adminDb
+    .collection('settings')
+    .doc('configuration')
+    .set(defaultConfig);
+
+  // Invalidate cache
+  invalidateConfigurationCache();
+
+  console.log('Default configuration initialized');
+}
+
+/**
+ * Reset configuration to defaults (delete and recreate)
+ */
+export async function resetConfiguration(): Promise<void> {
+  try {
+    // Delete existing configuration
+    await adminDb
+      .collection('settings')
+      .doc('configuration')
+      .delete();
+
+    // Invalidate cache
+    invalidateConfigurationCache();
+
+    // Recreate with defaults
+    await initializeConfiguration();
+
+    console.log('Configuration reset to defaults');
+  } catch (error) {
+    console.error('Error resetting configuration:', error);
+    throw error;
+  }
+}
+
+/**
+ * Invalidate the configuration cache
+ * Call this after updating configuration
+ */
+export function invalidateConfigurationCache() {
+  configCache = null;
+  cacheTimestamp = 0;
+}
+
+/**
+ * Get threshold for a specific classification type
+ */
+export function getThresholdForClassification(
+  config: Configuration,
+  classification: Classification
+): number {
+  switch (classification) {
+    case 'high-quality':
+      return config.thresholds.highQuality;
+    case 'low-quality':
+      return config.thresholds.lowQuality;
+    case 'support':
+      return config.thresholds.support;
+    case 'duplicate':
+      return config.thresholds.duplicate;
+    case 'irrelevant':
+      return config.thresholds.irrelevant;
+  }
+}
+
+/**
+ * Determine if a lead should auto-send based on confidence and rollout settings
+ */
+export function shouldAutoSend(
+  confidence: number,
+  threshold: number,
+  rollout: Configuration['rollout']
+): boolean {
+  // Must pass confidence threshold
+  if (confidence < threshold) {
+    return false;
+  }
+
+  // Must have rollout enabled
+  if (!rollout.enabled) {
+    return false;
+  }
+
+  // Random roll against percentage
+  return Math.random() < rollout.percentage;
+}
+
+/**
+ * Get AI prompts from configuration
  */
 export async function getPrompts() {
-  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } = await import('./prompts');
-  return {
-    classification: CLASSIFICATION_PROMPT,
-    emailGeneration: EMAIL_GENERATION_PROMPT
-  };
+  const config = await getConfiguration();
+  return config.prompts;
 }

@@ -5,13 +5,11 @@ export const CLASSIFICATION_PROMPT = `You are a lead qualification expert for a 
 
 Analyze the following lead inquiry and classify it into one of these categories:
 
-- **quality**: High-value potential customer with clear business need and buying intent
+- **high-quality**: High-value potential customer with clear business need and buying intent
+- **low-quality**: Real opportunity but not a good fit (small company, limited budget, early-stage startup, or limited decision-making authority). Also use for ambiguous inquiries that need human review.
 - **support**: Existing customer or someone asking for product support/help
-- **low-value**: Real opportunity but not a good fit (small company, limited budget, early-stage startup, or limited decision-making authority)
-- **irrelevant**: Spam, test submission, student project, or otherwise not a real lead
-- **dead**: Lead has explicitly stated they're not interested, declined, or a previous relationship ended
 - **duplicate**: Existing customer found in CRM, or duplicate lead from someone who already submitted. This lead should be forwarded to their Account Team instead of receiving an automated email to the customer.
-- **uncertain**: Ambiguous inquiry that needs human review to determine value
+- **irrelevant**: Spam, test submission, student project, or otherwise not a real lead
 
 Provide a confidence score (0-1) indicating how certain you are of this classification.
 Provide brief reasoning explaining your classification decision.
@@ -19,21 +17,22 @@ Provide brief reasoning explaining your classification decision.
 CLASSIFICATION PRIORITY RULES:
 1. If the research findings contain "DUPLICATE CUSTOMER FOUND" or mention an existing customer relationship with an Account Team or annual value, classify as "duplicate" regardless of other factors.
 2. If classified as duplicate, the confidence score should be based on the strength of the CRM match, not the quality of the opportunity.
-3. Only classify as "quality", "support", "uncertain", etc. if the research confirms this is NOT an existing customer.
+3. Only classify as "high-quality", "support", etc. if the research confirms this is NOT an existing customer.
 
 COMPANY VERIFICATION RULES:
 1. If research returns "No results found", "Search failed", or shows no evidence the company exists online, this is a RED FLAG.
-2. Companies with no web presence, no search results, or failed verification should be classified as "uncertain" or "low-value" (never "quality").
-3. For non-existent companies: If the message looks like spam or very low effort, classify as "low-value" with medium-high confidence (0.6-0.8). If the message looks legitimate but company cannot be verified, classify as "uncertain" with medium confidence (0.5-0.7) to ensure human review.
-4. Only classify as "quality" if the research confirms the company exists with a legitimate web presence.
+2. Companies with no web presence, no search results, or failed verification should be classified as "low-quality" (never "high-quality").
+3. For non-existent companies: If the message looks like spam or very low effort, classify as "low-quality" with medium-high confidence (0.6-0.8). If the message looks legitimate but company cannot be verified, classify as "low-quality" with medium confidence (0.5-0.7) to ensure human review.
+4. EXCEPTION - Obvious Spam: If company cannot be verified AND message has clear spam indicators (ALL CAPS, "click here", crypto/investment scams, excessive punctuation!!!, generic scam names like "Make Money Fast"), classify as "irrelevant" with confidence 0.85-0.95.
+5. Only classify as "high-quality" if the research confirms the company exists with a legitimate web presence.
 
 PERSON IDENTITY VERIFICATION RULES:
-1. If research indicates "AMBIGUOUS IDENTITY" or reports multiple people with the same name at the company, classify as "uncertain" regardless of message quality.
+1. If research indicates "AMBIGUOUS IDENTITY" or reports multiple people with the same name at the company, classify as "low-quality" regardless of message quality to ensure human review.
 2. Ambiguous identity requires human verification to determine which person submitted the lead and their actual seniority level.
 3. Even if the message sounds like a high-value opportunity, uncertain identity means we cannot verify decision-making authority.
-4. Only classify as "quality" if the person's identity and role have been clearly verified.
+4. Only classify as "high-quality" if the person's identity and role have been clearly verified.
 
-IMPORTANT: Be conservative. When in doubt between categories, classify as 'uncertain' to ensure human review. Better to over-review than to miss a good lead or auto-respond inappropriately.
+IMPORTANT: Be conservative. When in doubt between categories, classify as 'low-quality' with lower confidence to ensure human review. Better to over-review than to miss a good lead or auto-respond inappropriately.
 
 Return only structured data in the requested format.`;
 

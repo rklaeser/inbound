@@ -9,10 +9,9 @@ import type { ConfigurationMetrics, Lead } from "./types";
 export async function calculateConfigurationMetrics(
   configurationId: string
 ): Promise<ConfigurationMetrics> {
-  // Fetch all leads for this configuration
+  // Fetch all leads (no configuration_id filter since we have single config now)
   const leadsSnapshot = await adminDb
     .collection("leads")
-    .where("configuration_id", "==", configurationId)
     .get();
 
   const leads: Lead[] = leadsSnapshot.docs.map((doc) => ({
@@ -23,19 +22,23 @@ export async function calculateConfigurationMetrics(
   // Calculate counts
   const totalLeads = leads.length;
 
-  // Leads that had emails generated (quality, support, uncertain)
+  // Leads that had emails generated (have bot_text or human_edits)
   const leadsWithEmails = leads.filter(
     (lead) =>
-      lead.generated_email_subject && lead.generated_email_body
+      (lead.bot_text?.highQualityText || lead.bot_text?.lowQualityText) || lead.human_edits?.versions[0]?.text
   );
   const emailsGenerated = leadsWithEmails.length;
 
-  // Leads where email was sent (approved)
-  const sentLeads = leads.filter((lead) => lead.outcome === "sent_meeting_offer" || lead.outcome === "sent_generic");
+  // Leads where email was sent (status = done and terminal state is sent)
+  const { getTerminalState } = await import('./types');
+  const sentLeads = leads.filter((lead) => {
+    const terminalState = getTerminalState(lead);
+    return terminalState === "sent_meeting_offer" || terminalState === "sent_generic";
+  });
   const emailsSent = sentLeads.length;
 
-  // Leads that were rejected
-  const rejectedLeads = leads.filter((lead) => lead.outcome === "dead");
+  // Leads that were rejected (terminal state = dead)
+  const rejectedLeads = leads.filter((lead) => getTerminalState(lead) === "dead");
   const emailsRejected = rejectedLeads.length;
 
   // Calculate approval rate: (sent / generated) * 100
@@ -43,7 +46,7 @@ export async function calculateConfigurationMetrics(
     emailsGenerated > 0 ? (emailsSent / emailsGenerated) * 100 : 0;
 
   // Calculate edit rate: (edited / sent) * 100
-  const editedEmails = sentLeads.filter((lead) => lead.edited === true);
+  const editedEmails = sentLeads.filter((lead) => lead.human_edits !== null);
   const editRate = emailsSent > 0 ? (editedEmails.length / emailsSent) * 100 : 0;
 
   // Calculate average response time (created_at to sent_at)
@@ -51,15 +54,15 @@ export async function calculateConfigurationMetrics(
   let responseTimeCount = 0;
 
   sentLeads.forEach((lead) => {
-    if (lead.closed_at && lead.created_at) {
-      const sentTime = (lead.closed_at as any).toDate
-        ? (lead.closed_at as any).toDate().getTime()
-        : (lead.closed_at as Date).getTime();
-      const createdTime = (lead.created_at as any).toDate
-        ? (lead.created_at as any).toDate().getTime()
-        : (lead.created_at as Date).getTime();
+    if (lead.status.sent_at && lead.status.received_at) {
+      const sentTime = (lead.status.sent_at as any).toDate
+        ? (lead.status.sent_at as any).toDate().getTime()
+        : (lead.status.sent_at as Date).getTime();
+      const receivedTime = (lead.status.received_at as any).toDate
+        ? (lead.status.received_at as any).toDate().getTime()
+        : (lead.status.received_at as Date).getTime();
 
-      totalResponseTimeMs += sentTime - createdTime;
+      totalResponseTimeMs += sentTime - receivedTime;
       responseTimeCount++;
     }
   });
@@ -71,15 +74,19 @@ export async function calculateConfigurationMetrics(
   let totalBookingTimeMs = 0;
   let bookingTimeCount = 0;
 
-  const bookedLeads = leads.filter((lead) => lead.meeting_booked_at);
+  const bookedLeads = leads.filter((lead) => {
+    const data = lead as any;
+    return data.meeting_booked_at;
+  });
   bookedLeads.forEach((lead) => {
-    if (lead.meeting_booked_at && lead.closed_at) {
-      const bookedTime = (lead.meeting_booked_at as any).toDate
-        ? (lead.meeting_booked_at as any).toDate().getTime()
-        : (lead.meeting_booked_at as Date).getTime();
-      const sentTime = (lead.closed_at as any).toDate
-        ? (lead.closed_at as any).toDate().getTime()
-        : (lead.closed_at as Date).getTime();
+    const data = lead as any;
+    if (data.meeting_booked_at && lead.status.sent_at) {
+      const bookedTime = (data.meeting_booked_at as any).toDate
+        ? (data.meeting_booked_at as any).toDate().getTime()
+        : (data.meeting_booked_at as Date).getTime();
+      const sentTime = (lead.status.sent_at as any).toDate
+        ? (lead.status.sent_at as any).toDate().getTime()
+        : (lead.status.sent_at as Date).getTime();
 
       totalBookingTimeMs += bookedTime - sentTime;
       bookingTimeCount++;
@@ -89,33 +96,36 @@ export async function calculateConfigurationMetrics(
   const avgTimeToBookingMs =
     bookingTimeCount > 0 ? totalBookingTimeMs / bookingTimeCount : null;
 
-  // Calculate rerouted count (manually forwarded leads)
-  const reroutedCount = leads.filter((lead) => lead.forwarded_to).length;
+  // Calculate rerouted count (manually forwarded leads - terminal state is forwarded)
+  const reroutedCount = leads.filter((lead) => {
+    const terminalState = getTerminalState(lead);
+    return terminalState === "forwarded_support" || terminalState === "forwarded_account_team";
+  }).length;
 
   // Calculate classification breakdown
+  const { getCurrentClassification } = await import('./types');
   const classificationBreakdown = {
-    quality: leads.filter((l) => l.classification === "quality").length,
-    support: leads.filter((l) => l.classification === "support").length,
-    "low-value": leads.filter((l) => l.classification === "low-value").length,
-    uncertain: leads.filter((l) => l.classification === "uncertain").length,
-    dead: leads.filter((l) => l.classification === "dead").length,
-    duplicate: leads.filter((l) => l.classification === "duplicate").length,
+    "high-quality": leads.filter((l) => getCurrentClassification(l) === "high-quality").length,
+    "low-quality": leads.filter((l) => getCurrentClassification(l) === "low-quality").length,
+    support: leads.filter((l) => getCurrentClassification(l) === "support").length,
+    duplicate: leads.filter((l) => getCurrentClassification(l) === "duplicate").length,
+    irrelevant: leads.filter((l) => getCurrentClassification(l) === "irrelevant").length,
   };
 
   // Get time range
   const sortedLeads = leads.sort((a, b) => {
-    const aTime = (a.created_at as any).toDate
-      ? (a.created_at as any).toDate().getTime()
-      : (a.created_at as Date).getTime();
-    const bTime = (b.created_at as any).toDate
-      ? (b.created_at as any).toDate().getTime()
-      : (b.created_at as Date).getTime();
+    const aTime = (a.status.received_at as any).toDate
+      ? (a.status.received_at as any).toDate().getTime()
+      : (a.status.received_at as Date).getTime();
+    const bTime = (b.status.received_at as any).toDate
+      ? (b.status.received_at as any).toDate().getTime()
+      : (b.status.received_at as Date).getTime();
     return aTime - bTime;
   });
 
-  const firstLeadAt = sortedLeads.length > 0 ? sortedLeads[0].created_at : null;
+  const firstLeadAt = sortedLeads.length > 0 ? sortedLeads[0].status.received_at : null;
   const lastLeadAt =
-    sortedLeads.length > 0 ? sortedLeads[sortedLeads.length - 1].created_at : null;
+    sortedLeads.length > 0 ? sortedLeads[sortedLeads.length - 1].status.received_at : null;
 
   return {
     configuration_id: configurationId,
@@ -138,20 +148,9 @@ export async function calculateConfigurationMetrics(
  * Calculate metrics for all configurations
  */
 export async function calculateAllConfigurationsMetrics(): Promise<ConfigurationMetrics[]> {
-  // Fetch all configurations
-  const configurationsSnapshot = await adminDb
-    .collection("configurations")
-    .orderBy("version", "asc")
-    .get();
-
-  const metrics: ConfigurationMetrics[] = [];
-
-  for (const doc of configurationsSnapshot.docs) {
-    const configurationMetrics = await calculateConfigurationMetrics(doc.id);
-    metrics.push(configurationMetrics);
-  }
-
-  return metrics;
+  // With single configuration, just return metrics for the system
+  const configurationMetrics = await calculateConfigurationMetrics('system');
+  return [configurationMetrics];
 }
 
 /**

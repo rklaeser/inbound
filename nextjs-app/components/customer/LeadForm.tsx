@@ -78,15 +78,47 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
     },
   });
 
-  const fillTestData = (type: keyof typeof testData) => {
+  const fillTestData = async (type: keyof typeof testData) => {
     const testCase = testData[type];
+
+    // Fill form fields for visual feedback
     form.setFieldValue('name', testCase.data.name);
     form.setFieldValue('email', testCase.data.email);
     form.setFieldValue('company', testCase.data.company);
     form.setFieldValue('message', testCase.data.message);
 
-    // Auto-submit after filling fields
-    setTimeout(() => form.handleSubmit(), 100);
+    // Submit directly to API with test metadata (same as runTests)
+    try {
+      const response = await fetch('/api/leads/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...testCase.data,
+          metadata: {
+            isTestLead: true,
+            testCase: type,
+            expectedClassifications: testCase.expectedClassification,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit test lead');
+      }
+
+      // Pass lead data to parent
+      onSuccess({
+        company: testCase.data.company,
+        message: testCase.data.message,
+      });
+
+      // Reset form
+      form.reset();
+    } catch (error) {
+      console.error('Error submitting test lead:', error);
+    }
   };
 
   const handleRunTests = async () => {
@@ -100,7 +132,6 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
       setTestResult({
         success: false,
         results: [],
-        configurationId: '',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
@@ -158,7 +189,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
               onClick={() => fillTestData('fake')}
               disabled={testRunning}
             >
-              Uncertain (Fake)
+              Irrelevant (Fake)
             </Button>
             <Button
               type="button"
@@ -167,7 +198,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
               onClick={() => fillTestData('quality')}
               disabled={testRunning}
             >
-              Quality
+              High-Quality
             </Button>
             <Button
               type="button"
@@ -176,7 +207,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
               onClick={() => fillTestData('weak')}
               disabled={testRunning}
             >
-              Low-Value
+              Low-Quality
             </Button>
             <Button
               type="button"
@@ -213,6 +244,15 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
               disabled={testRunning}
             >
               Uncertain (Employee)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fillTestData('mcmasterCarr')}
+              disabled={testRunning}
+            >
+              Quality (McMaster-Carr)
             </Button>
           </div>
 
@@ -295,7 +335,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                <FieldLabel htmlFor={field.name}>Company Email</FieldLabel>
                 <Input
                   id={field.name}
                   name={field.name}

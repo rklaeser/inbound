@@ -1,8 +1,7 @@
 import * as React from 'react';
-import type { Lead } from '@/lib/types';
+import type { Lead, Classification, TerminalState } from '@/lib/types';
+import { getTerminalState, getCurrentClassification, getTerminalStateDisplay, getClassificationAction } from '@/lib/types';
 import { Check, X, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
-import { getOutcomeColors } from '@/lib/outcomes';
-import { getClassificationColors } from '@/lib/classifications';
 
 interface BadgeInfo {
   label: string;
@@ -13,183 +12,81 @@ interface BadgeInfo {
 }
 
 /**
- * Determines the badge display for a lead based on outcome and classification
+ * Get colors for a given color hex
+ */
+function getColorsFromHex(hex: string) {
+  return {
+    background: `${hex}1a`,  // 10% opacity
+    text: hex,
+    border: `${hex}33`,       // 20% opacity
+  };
+}
+
+/**
+ * Determines the badge display for a lead based on status and classification
  *
- * Logic:
- * - Terminal outcomes (sent, dead, forwarded, error) → Show outcome
- * - Processing (outcome === null) → Show "Processing"
- * - Pending (outcome === 'pending') → Show action derived from classification
+ * New model logic:
+ * - status.status = 'done' → Show terminal state (derived from classification)
+ * - status.status = 'review' + no classification → Show "Processing"
+ * - status.status = 'review' + classification → Show action needed
  */
 function getBadgeForLead(lead: Lead): BadgeInfo {
-  const { outcome, classification } = lead;
+  const { status, classifications } = lead;
 
-  // Processing state (outcome === null)
-  if (outcome === null) {
-    const colors = getOutcomeColors(null);
+  // Check for terminal state (status = done)
+  const terminalState = getTerminalState(lead);
+  if (terminalState) {
+    const display = getTerminalStateDisplay(terminalState);
+    const colors = getColorsFromHex(display.color);
+
+    // Choose icon based on terminal state
+    let icon: React.ReactElement | null = <Check className="h-3 w-3" />;
+    if (terminalState === 'dead') {
+      icon = <X className="h-3 w-3" />;
+    } else if (terminalState === 'forwarded_support' || terminalState === 'forwarded_account_team') {
+      icon = <ArrowRight className="h-3 w-3" />;
+    }
+
     return {
-      label: 'Processing',
+      label: display.label,
       bg: colors.background,
       text: colors.text,
       border: colors.border,
+      icon,
+    };
+  }
+
+  // In review with no classification yet → Processing
+  if (status.status === 'review' && classifications.length === 0) {
+    return {
+      label: 'Processing',
+      bg: 'rgba(245,158,11,0.1)',
+      text: '#f59e0b',
+      border: 'rgba(245,158,11,0.2)',
       icon: <Loader2 className="h-3 w-3 animate-spin" />
     };
   }
 
-  // Terminal outcome: Error
-  if (outcome === 'error') {
-    const colors = getOutcomeColors('error');
-    return {
-      label: 'Error',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: <AlertCircle className="h-3 w-3" />
-    };
-  }
+  // In review with classification → Show action needed
+  if (status.status === 'review') {
+    const classification = getCurrentClassification(lead);
 
-  // Terminal outcome: Meeting Offer Sent
-  if (outcome === 'sent_meeting_offer') {
-    const colors = getOutcomeColors('sent_meeting_offer');
-    return {
-      label: 'Meeting Offer Sent',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: <Check className="h-3 w-3" />
-    };
-  }
+    if (classification) {
+      const action = getClassificationAction(classification);
+      const colors = getColorsFromHex(action.color);
+      const actionLabel = action.short;
+      const icon = classification === 'irrelevant'
+        ? <X className="h-3 w-3" />
+        : <ArrowRight className="h-3 w-3" />;
 
-  // Terminal outcome: Generic Message Sent
-  if (outcome === 'sent_generic') {
-    const colors = getOutcomeColors('sent_generic');
-    return {
-      label: 'Generic Message Sent',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: <Check className="h-3 w-3" />
-    };
-  }
-
-  // Terminal outcome: Dead
-  if (outcome === 'dead') {
-    const colors = getOutcomeColors('dead');
-    return {
-      label: 'Dead',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: <X className="h-3 w-3" />
-    };
-  }
-
-  // Terminal outcome: Forwarded to Account Team
-  if (outcome === 'forwarded_account_team') {
-    const colors = getOutcomeColors('forwarded_account_team');
-    return {
-      label: 'Forwarded to Account Team',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: <ArrowRight className="h-3 w-3" />
-    };
-  }
-
-  // Terminal outcome: Forwarded to Support
-  if (outcome === 'forwarded_support') {
-    const colors = getOutcomeColors('forwarded_support');
-    return {
-      label: 'Forwarded to Support',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: <ArrowRight className="h-3 w-3" />
-    };
-  }
-
-  // Pending outcome - determine action from classification
-  if (outcome === 'pending') {
-    // Quality leads → "Reply with Meeting"
-    if (classification === 'quality') {
-      const colors = getClassificationColors('quality');
       return {
-        label: 'Reply with Meeting',
+        label: actionLabel,
         bg: colors.background,
         text: colors.text,
         border: colors.border,
-        icon: <ArrowRight className="h-3 w-3" />
+        icon,
       };
     }
-
-    // Support leads → "Confirm Support"
-    if (classification === 'support') {
-      const colors = getClassificationColors('support');
-      return {
-        label: 'Confirm Support',
-        bg: colors.background,
-        text: colors.text,
-        border: colors.border,
-        icon: <ArrowRight className="h-3 w-3" />
-      };
-    }
-
-    // Duplicate leads → "Confirm Duplicate"
-    if (classification === 'duplicate') {
-      const colors = getClassificationColors('duplicate');
-      return {
-        label: 'Confirm Duplicate',
-        bg: colors.background,
-        text: colors.text,
-        border: colors.border,
-        icon: <ArrowRight className="h-3 w-3" />
-      };
-    }
-
-    // Low-value leads → "Reply with Generic"
-    if (classification === 'low-value') {
-      const colors = getClassificationColors('low-value');
-      return {
-        label: 'Reply with Generic',
-        bg: colors.background,
-        text: colors.text,
-        border: colors.border,
-        icon: <ArrowRight className="h-3 w-3" />
-      };
-    }
-
-    // Irrelevant or dead leads → "Confirm Dead"
-    if (classification === 'irrelevant' || classification === 'dead') {
-      const colors = getClassificationColors(classification);
-      return {
-        label: 'Confirm Dead',
-        bg: colors.background,
-        text: colors.text,
-        border: colors.border,
-        icon: <X className="h-3 w-3" />
-      };
-    }
-
-    // Uncertain leads → "Review"
-    if (classification === 'uncertain') {
-      const colors = getClassificationColors('uncertain');
-      return {
-        label: 'Review',
-        bg: colors.background,
-        text: colors.text,
-        border: colors.border,
-        icon: <AlertCircle className="h-3 w-3" />
-      };
-    }
-
-    // Default pending state (no classification yet)
-    const colors = getOutcomeColors('pending');
-    return {
-      label: 'Pending',
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon: null
-    };
   }
 
   // Fallback for unknown state
@@ -210,9 +107,9 @@ interface LeadBadgeProps {
  * LeadBadge - Primary badge for lead display
  *
  * Shows:
- * - Terminal outcomes → what happened (Sent, Dead, Forwarded)
- * - Pending → what action to take (Review, Confirm Support, etc.)
- * - Processing/Error → current state
+ * - Terminal state (done) → what happened (Sent, Dead, Forwarded)
+ * - In review → what action to take (Review, Confirm Support, etc.)
+ * - Processing → waiting for workflow
  */
 export function LeadBadge({ lead }: LeadBadgeProps) {
   const badge = getBadgeForLead(lead);

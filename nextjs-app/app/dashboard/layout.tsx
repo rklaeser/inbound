@@ -8,7 +8,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firestore';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
 
-type TabValue = 'leads' | 'analytics' | 'configurations' | 'case-studies' | 'docs';
+type TabValue = 'leads' | 'analytics' | 'settings' | 'case-studies';
 
 export default function DashboardLayout({
   children,
@@ -42,21 +42,6 @@ export default function DashboardLayout({
         return;
       }
 
-      // Match /dashboard/configurations/[id]
-      const configMatch = pathname.match(/^\/dashboard\/configurations\/([^/]+)$/);
-      if (configMatch && configMatch[1] !== 'new') {
-        const configId = configMatch[1];
-        try {
-          const response = await fetch(`/api/analytics/configurations/${configId}`);
-          const data = await response.json();
-          if (data.success && data.configuration) {
-            setDynamicName(data.configuration.name);
-          }
-        } catch (error) {
-          console.error('Error fetching configuration:', error);
-        }
-        return;
-      }
     };
 
     fetchDynamicName();
@@ -72,7 +57,7 @@ export default function DashboardLayout({
     }
 
     // Main section pages - show only Inbound
-    const mainPages = ['/dashboard/leads', '/dashboard/analytics', '/dashboard/configurations', '/dashboard/case-studies', '/dashboard/docs'];
+    const mainPages = ['/dashboard/leads', '/dashboard/analytics', '/dashboard/settings', '/dashboard/case-studies'];
     if (mainPages.includes(pathname)) {
       return [{ label: 'Inbound', path: '/dashboard' }];
     }
@@ -83,22 +68,6 @@ export default function DashboardLayout({
       return [
         { label: 'Inbound', path: '/dashboard' },
         { label: dynamicName, path: '' }
-      ];
-    }
-
-    const configMatch = pathname.match(/^\/dashboard\/configurations\/([^/]+)$/);
-    if (configMatch && configMatch[1] !== 'new' && dynamicName) {
-      return [
-        { label: 'Inbound', path: '/dashboard' },
-        { label: dynamicName, path: '' }
-      ];
-    }
-
-    // For /configurations/new, show Inbound / New
-    if (pathname === '/dashboard/configurations/new') {
-      return [
-        { label: 'Inbound', path: '/dashboard' },
-        { label: 'New', path: '' }
       ];
     }
 
@@ -113,9 +82,8 @@ export default function DashboardLayout({
     if (pathname === '/dashboard') return 'leads';
     if (pathname.startsWith('/dashboard/leads')) return 'leads';
     if (pathname.startsWith('/dashboard/analytics')) return 'analytics';
-    if (pathname.startsWith('/dashboard/configurations')) return 'configurations';
+    if (pathname.startsWith('/dashboard/settings')) return 'settings';
     if (pathname.startsWith('/dashboard/case-studies')) return 'case-studies';
-    if (pathname.startsWith('/dashboard/docs')) return 'docs';
     return 'leads';
   };
 
@@ -124,9 +92,8 @@ export default function DashboardLayout({
   const navItems = [
     { value: 'leads' as TabValue, label: 'Leads', path: '/dashboard' },
     { value: 'analytics' as TabValue, label: 'Analytics', path: '/dashboard/analytics' },
-    { value: 'configurations' as TabValue, label: 'Configurations', path: '/dashboard/configurations' },
+    { value: 'settings' as TabValue, label: 'Settings', path: '/dashboard/settings' },
     { value: 'case-studies' as TabValue, label: 'Case Studies', path: '/dashboard/case-studies' },
-    { value: 'docs' as TabValue, label: 'Docs', path: '/dashboard/docs' },
   ];
 
   return (
@@ -219,6 +186,19 @@ export default function DashboardLayout({
                       }}
                     >
                       Switch to Customer View
+                    </a>
+                    <a
+                      href="/dashboard/docs"
+                      className="block px-4 py-2 text-sm transition-colors"
+                      style={{ color: 'var(--text-primary)' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      Docs
                     </a>
 
                     {/* Dev Mode Toggle */}

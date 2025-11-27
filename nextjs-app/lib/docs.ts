@@ -154,7 +154,7 @@ export const docs = {
           },
           {
             title: "Classification Distribution",
-            content: "How leads are being categorized. Too many 'uncertain'? Thresholds might be poorly positioned. Too many 'quality' but low approval rate? Quality threshold too low."
+            content: "How leads are being categorized. Check the breakdown of high-quality, low-quality, support, duplicate, and irrelevant leads. Adjust thresholds if distribution seems off."
           }
         ]
       },
@@ -180,7 +180,7 @@ export const docs = {
         content: [
           {
             title: "Too many leads going to human review",
-            content: "Problem: High volume of 'uncertain' classifications. Solution: Lower quality threshold slightly (by 0.05) to give more leads automatic processing. Monitor approval rate to ensure quality remains high."
+            content: "Problem: Most leads require human review. Solution: Lower thresholds slightly (by 0.05) to allow more automatic processing. Monitor approval rate to ensure quality remains high."
           },
           {
             title: "AI is auto-rejecting good leads",

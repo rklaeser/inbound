@@ -12,6 +12,7 @@ export interface SalesforceContact {
   email: string;
   company: string;
   accountTeam: string;
+  accountTeamEmail: string;
   accountType: 'Enterprise' | 'Mid-Market' | 'SMB';
   annualValue: number;
   status: 'Active' | 'Churned' | 'At-Risk';
@@ -29,6 +30,7 @@ export const MOCK_CRM_CUSTOMERS: SalesforceContact[] = [
     email: 'alex.thompson@globaltech.com',
     company: 'GlobalTech Industries',
     accountTeam: 'Sarah Chen',
+    accountTeamEmail: 'sarah.chen@vercel.com',
     accountType: 'Enterprise',
     annualValue: 480000,
     status: 'Active',
@@ -41,6 +43,7 @@ export const MOCK_CRM_CUSTOMERS: SalesforceContact[] = [
     email: 'maria@cloudstartup.io',
     company: 'CloudStartup',
     accountTeam: 'James Park',
+    accountTeamEmail: 'james.park@vercel.com',
     accountType: 'Mid-Market',
     annualValue: 85000,
     status: 'Active',
@@ -53,6 +56,7 @@ export const MOCK_CRM_CUSTOMERS: SalesforceContact[] = [
     email: 'david@designco.com',
     company: 'DesignCo',
     accountTeam: 'Michelle Wong',
+    accountTeamEmail: 'michelle.wong@vercel.com',
     accountType: 'SMB',
     annualValue: 12000,
     status: 'At-Risk',
@@ -65,6 +69,7 @@ export const MOCK_CRM_CUSTOMERS: SalesforceContact[] = [
     email: 'jessica.brown@stripe.com',
     company: 'Stripe',
     accountTeam: 'Robert Martinez',
+    accountTeamEmail: 'robert.martinez@vercel.com',
     accountType: 'Enterprise',
     annualValue: 650000,
     status: 'Active',

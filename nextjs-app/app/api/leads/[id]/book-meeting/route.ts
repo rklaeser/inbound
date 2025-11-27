@@ -29,8 +29,9 @@ export async function POST(
 
     const leadData = leadDoc.data() as Lead;
 
-    // Check if meeting already booked
-    if (leadData.meeting_booked_at) {
+    // Check if meeting already booked (stored as custom field in Firestore)
+    const existingData = leadDoc.data();
+    if (existingData?.meeting_booked_at) {
       return NextResponse.json({
         success: true,
         message: "Meeting already booked",
@@ -41,8 +42,8 @@ export async function POST(
       });
     }
 
-    // Check if email was sent
-    if (leadData.outcome !== 'sent_meeting_offer' && leadData.outcome !== 'sent_generic') {
+    // Check if email was sent (status must be 'done' and terminal state should be sent_meeting_offer or sent_generic)
+    if (leadData.status.status !== 'done') {
       return NextResponse.json(
         {
           success: false,
@@ -60,12 +61,12 @@ export async function POST(
 
     // Calculate time to booking
     let sentTime: number;
-    if (!leadData.closed_at) {
+    if (!leadData.status.sent_at) {
       sentTime = Date.now();
-    } else if (typeof (leadData.closed_at as any).toDate === 'function') {
-      sentTime = (leadData.closed_at as any).toDate().getTime();
+    } else if (typeof (leadData.status.sent_at as any).toDate === 'function') {
+      sentTime = (leadData.status.sent_at as any).toDate().getTime();
     } else {
-      sentTime = (leadData.closed_at as Date).getTime();
+      sentTime = (leadData.status.sent_at as Date).getTime();
     }
     const bookedTime = bookedAt.toDate().getTime();
     const timeToBookingMs = bookedTime - sentTime;
@@ -74,7 +75,6 @@ export async function POST(
     const updatedLead = {
       ...leadData,
       id: leadDoc.id,
-      meeting_booked_at: bookedAt,
     };
     await logMeetingBookedEvent(updatedLead as Lead, timeToBookingMs);
 

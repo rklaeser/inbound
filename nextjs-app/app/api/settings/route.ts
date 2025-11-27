@@ -1,125 +1,162 @@
-// GET /api/settings - Get system settings
-// POST /api/settings - Update system settings
+// GET /api/settings - Get current configuration
+// PATCH /api/settings - Update configuration
+// DELETE /api/settings - Reset to default configuration
 
-import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
-import type { SystemSettings } from "@/lib/types";
-import { z } from "zod";
+import { NextRequest, NextResponse } from 'next/server';
+import { getConfiguration, updateConfiguration, initializeConfiguration, resetConfiguration } from '@/lib/configuration-helpers';
+import { z } from 'zod';
 
-const SETTINGS_DOC_ID = "system";
-
-// Default settings
-const DEFAULT_SETTINGS: SystemSettings = {
-  autoDeadLowValueThreshold: 0.9,
-  autoForwardDuplicateThreshold: 0.9,
-  autoForwardSupportThreshold: 0.9,
-  autoSendQualityThreshold: 0.9,
-  qualityLeadConfidenceThreshold: 0.7,
-  sdr: {
-    name: 'Ryan',
-    email: 'ryan@vercel.com'
-  }
-};
-
-// Validation schema
-const settingsSchema = z.object({
-  autoDeadLowValueThreshold: z.number().min(0).max(1),
-  autoForwardDuplicateThreshold: z.number().min(0).max(1),
-  autoForwardSupportThreshold: z.number().min(0).max(1),
-  autoSendQualityThreshold: z.number().min(0).max(1),
-  qualityLeadConfidenceThreshold: z.number().min(0).max(1),
-  sdr: z.object({
-    name: z.string().min(1, 'SDR name is required'),
-    email: z.string().email('Valid email is required')
-  })
+// Email template schema (shared structure)
+const emailTemplateBaseSchema = z.object({
+  subject: z.string().optional(),
+  greeting: z.string().optional(),
+  callToAction: z.string().optional(),
+  signOff: z.string().optional(),
 });
 
-// GET - Fetch current settings
+const emailTemplateWithSenderSchema = emailTemplateBaseSchema.extend({
+  senderName: z.string().optional(),
+  senderEmail: z.string().optional(),
+});
+
+// Internal notification template schema (subject + body only)
+const internalNotificationSchema = z.object({
+  subject: z.string().optional(),
+  body: z.string().optional(),
+});
+
+// Validation schema for configuration updates
+const updateConfigurationSchema = z.object({
+  thresholds: z.object({
+    highQuality: z.number().min(0).max(1).optional(),
+    lowQuality: z.number().min(0).max(1).optional(),
+    support: z.number().min(0).max(1).optional(),
+    duplicate: z.number().min(0).max(1).optional(),
+    irrelevant: z.number().min(0).max(1).optional(),
+  }).optional(),
+  sdr: z.object({
+    name: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+  }).optional(),
+  supportTeam: z.object({
+    name: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+  }).optional(),
+  emailTemplates: z.object({
+    highQuality: emailTemplateBaseSchema.optional(),
+    lowQuality: emailTemplateWithSenderSchema.optional(),
+    support: emailTemplateWithSenderSchema.optional(),
+    duplicate: emailTemplateWithSenderSchema.optional(),
+    supportInternal: internalNotificationSchema.optional(),
+    duplicateInternal: internalNotificationSchema.optional(),
+  }).optional(),
+  prompts: z.object({
+    classification: z.string().optional(),
+    emailHighQuality: z.string().optional(),
+    emailLowQuality: z.string().optional(),
+    emailGeneric: z.string().optional(),
+  }).optional(),
+  rollout: z.object({
+    enabled: z.boolean().optional(),
+    percentage: z.number().min(0).max(1).optional(),
+  }).optional(),
+  email: z.object({
+    enabled: z.boolean().optional(),
+    testMode: z.boolean().optional(),
+    testEmail: z.string().email().optional(),
+  }).optional(),
+});
+
+// GET - Get current configuration
 export async function GET() {
   try {
-    const settingsDoc = await adminDb
-      .collection("settings")
-      .doc(SETTINGS_DOC_ID)
-      .get();
+    let configuration;
 
-    if (!settingsDoc.exists) {
-      // Return default settings if none exist
-      return NextResponse.json({
-        success: true,
-        settings: DEFAULT_SETTINGS,
-      });
+    try {
+      configuration = await getConfiguration();
+    } catch {
+      // If configuration doesn't exist, initialize it
+      console.log('No configuration found, initializing default configuration...');
+      await initializeConfiguration();
+      configuration = await getConfiguration();
     }
-
-    const settings = settingsDoc.data() as SystemSettings;
-
-    // Ensure SDR fields exist (for backward compatibility)
-    const sdr = settings.sdr || DEFAULT_SETTINGS.sdr;
 
     return NextResponse.json({
       success: true,
-      settings: {
-        autoDeadLowValueThreshold: settings.autoDeadLowValueThreshold,
-        autoForwardDuplicateThreshold: settings.autoForwardDuplicateThreshold,
-        autoForwardSupportThreshold: settings.autoForwardSupportThreshold,
-        autoSendQualityThreshold: settings.autoSendQualityThreshold,
-        qualityLeadConfidenceThreshold: settings.qualityLeadConfidenceThreshold,
-        sdr
-      },
+      configuration,
     });
   } catch (error) {
-    console.error("Error fetching settings:", error);
+    console.error('Error fetching settings:', error);
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch settings",
+        error: 'Failed to fetch settings',
       },
       { status: 500 }
     );
   }
 }
 
-// POST - Update settings
-export async function POST(request: NextRequest) {
+// PATCH - Update configuration
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
 
     // Validate input
-    const validationResult = settingsSchema.safeParse(body);
+    const validationResult = updateConfigurationSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid settings values",
+          error: 'Invalid configuration data',
           details: validationResult.error.errors,
         },
         { status: 400 }
       );
     }
 
-    const settings = validationResult.data;
+    // Get user from middleware (or hardcoded for now)
+    const userEmail = request.headers.get('x-user-email') || 'system';
 
-    // Update settings in Firestore
-    await adminDb
-      .collection("settings")
-      .doc(SETTINGS_DOC_ID)
-      .set(
-        {
-          ...settings,
-          updated_at: new Date(),
-        },
-        { merge: true }
-      );
+    // Update configuration - cast to Partial<Configuration> since we're doing partial updates
+    await updateConfiguration(validationResult.data as Partial<import('@/lib/types').Configuration>, userEmail);
+
+    // Return updated configuration
+    const updatedConfig = await getConfiguration();
 
     return NextResponse.json({
       success: true,
-      settings,
+      configuration: updatedConfig,
     });
   } catch (error) {
-    console.error("Error updating settings:", error);
+    console.error('Error updating settings:', error);
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to update settings",
+        error: 'Failed to update settings',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Reset configuration to defaults
+export async function DELETE() {
+  try {
+    await resetConfiguration();
+    const configuration = await getConfiguration();
+
+    return NextResponse.json({
+      success: true,
+      message: 'Configuration reset to defaults',
+      configuration,
+    });
+  } catch (error) {
+    console.error('Error resetting settings:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to reset settings',
       },
       { status: 500 }
     );

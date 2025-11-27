@@ -1,11 +1,92 @@
 # Lead Data Model: Autonomy + Classification + Outcome
 
+submission Returned and Stored
+{
+  leadName
+  Message:
+  Company:
+}
+
+botClassification Return and Stored
+{
+  confidence: float 0-1
+  classification: [quality, low-value, support, duplicate, irrelevant]
+}
+
+botGeneration Returned and Stored <--- just always do
+{
+  lowValueText: string
+  highValueText: string
+  timeStamp: date.time
+}
+
+botRollout $note will show data of botRollout values that were approved without reclassification using classification done classifications has 1
+{
+  rollOut: float 0-1
+  useBot: true
+}
+
+humanEdits : null $Note If human edits we add the newest version to the front (look up best data structure for adding to one and always being able to find the one. Don't keep classification in here or copy ai versions because that adds complications.)
+{
+  note: null | string $note can be used to give context on tone or word choices that caused a rewrite.
+ [
+  {
+  text: string
+  timestamp: date.time
+  }
+ ]
+}
+
+classification $Note this example shows a classification object that has been reclassified by a human and then sent. The status could be wip or done but since it has been sent it is done.
+{
+  status: done
+  note: null $note can be used to add context on a reclassification
+  classifications[
+    {
+    who: human;
+    classification: low-quality;
+    timeStamp: date.time;
+    needsReview: false $Note if a human has reclassified it only needsReview if quality or low-value
+    },
+    {
+    who: bot;
+    classification: high-quality;
+    timeStamp: date.time;
+    needsReview: true $Note if (confidence > threshold) needsReview = 1  else needsReview = 0
+    }
+  ]
+}
+outcome <-- no need for an outcome object, everything can be derived from classification object
+{
+  timeStamp
+  classification: 
+  message: 
+  editedBeforeSent: true | false $Note: depending on whether ther are multiple versions
+}
+
+Also add to Lead Detail page: Google, LinkedIn search company
+
 **Last Updated:** 2025-01-20
+if (confidence > threshold) = needs review(0)
+if (confidence <= threshold) = needs review(1)
+
+
+
+Add the newest classification to the classifications object
+
+
+Example: 
+FakeCompany with good message classified as low-value
+FakeCompany with bad message classifed as spam
+
+Decision: so get rid of instructions that attempt to create special instructions. The AI will always take a swipe at classifiying and humans can always reclassify category companyOrAuthorNotFoundButQualityMessage, ____, Classify 
+
 
 ---
 
 ## The Three Fields
-
+confidence and threshold = needs review
+needsReview yes, no, null
 ### 1. `autonomy` - WHO Made the Decision
 
 **Type:** `'review' | 'auto' | null`
@@ -19,7 +100,10 @@
 ---
 
 ### 2. `classification` - WHAT the AI Thinks
-
+needsReview + classification = leadingAction
+needsReview(0) + classification(low value) = {outcome(dead), actionLabel(null)}
+needsReview(1) + low value = {outcome(null), actionLabel(Confirm Low Value)}
+**Type:** `'quality' | 'support' | 'duplicate' | 'low-value' | 'irrelevant' | 'uncertain' | null`
 **Type:** `'quality' | 'support' | 'duplicate' | 'low-value' | 'irrelevant' | 'dead' | 'uncertain' | null`
 
 - `'quality'` → High-value lead worth personalized outreach

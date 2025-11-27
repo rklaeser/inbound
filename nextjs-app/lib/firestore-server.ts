@@ -99,21 +99,14 @@ export async function getAllConfigurationsServer() {
 
 /**
  * Get leads in review queue (server-side)
+ * New data model: status.status = 'review' means lead needs human action
  */
 export async function getReviewQueueLeadsServer(): Promise<Lead[]> {
   const leadsRef = adminDb.collection('leads');
 
-  // Fetch leads with review-related statuses
   const snapshot = await leadsRef
-    .where('status', 'in', [
-      'review',           // New: Ready for human review
-      'generating',       // New: Email being generated
-      'qualifying',       // New: Lead being qualified
-      'in_review',        // Legacy
-      'email_generated',  // Legacy
-      'classified'        // Legacy
-    ])
-    .orderBy('created_at', 'desc')
+    .where('status.status', '==', 'review')
+    .orderBy('status.received_at', 'desc')
     .get();
 
   return snapshot.docs.map(doc =>

@@ -2,16 +2,22 @@ import {
   leadResearcher,
   qualifyLead,
   generateEmailForLead,
-  generateGenericEmail,
-  generateLowValueEmail
 } from '@/lib/workflow-services';
-import { LeadFormData, ClassificationResult } from '@/lib/types';
+import { LeadFormData, Classification, ClassificationResult, BotText, LeadStatus } from '@/lib/types';
+import { getConfiguration, getThresholdForClassification, shouldAutoSend } from '@/lib/configuration-helpers';
+
+/**
+ * Research result type
+ */
+export interface ResearchResult {
+  report: string;
+}
 
 /**
  * Research step - gather lead information
  * Uses AI Agent with tools to collect comprehensive background data
  */
-export const stepResearch = async (lead: LeadFormData) => {
+export const stepResearch = async (lead: LeadFormData): Promise<ResearchResult> => {
   'use step';
 
   console.log(`[Workflow] Starting research for lead: ${lead.company}`);
@@ -29,174 +35,116 @@ Provide a comprehensive research report.`
 
   console.log(`[Workflow] Research completed`);
 
-  // Extract job title and LinkedIn URL from research using regex
-  const jobTitleMatch = research.match(/Job Title:\s*([^\n]+)/i);
-  const linkedinMatch = research.match(/LinkedIn:\s*(https?:\/\/[^\s\)]+)/i);
-
-  return {
-    report: research,
-    jobTitle: jobTitleMatch ? jobTitleMatch[1].trim() : null,
-    linkedinUrl: linkedinMatch ? linkedinMatch[1].trim() : null,
-  };
+  return { report: research };
 };
 
 /**
- * Qualification step - classify lead quality
+ * Classification step - classify lead type
  * Analyzes lead data to determine classification category and confidence score
  */
-export const stepQualify = async (
+export const stepClassify = async (
   lead: LeadFormData,
-  research: string
-) => {
+  research: ResearchResult
+): Promise<ClassificationResult> => {
   'use step';
 
-  console.log(`[Workflow] Starting qualification`);
+  console.log(`[Workflow] Starting classification`);
 
-  // Run AI qualification
-  const qualification = await qualifyLead(lead, research);
+  // Run AI classification
+  const qualification = await qualifyLead(lead, research.report);
 
   console.log(
-    `[Workflow] Qualification completed: ${qualification.classification} (${qualification.confidence})`
+    `[Workflow] Classification completed: ${qualification.classification} (confidence: ${qualification.confidence})`
   );
 
   return qualification;
 };
 
 /**
- * Email generation step - create personalized response
- * Generates appropriate email based on lead classification
- *
- * Email types:
- * - Quality: Personalized from SDR with meeting offer
- * - Uncertain: Generic from Vercel with customers link
- * - Support: Generic from Vercel with customers link
- * - Low-value: Sales email from Vercel with customers link (no meeting offer)
+ * Email generation step - create personalized high-quality email
+ * Only called for high-quality leads; other classifications use static templates
  */
 export const stepGenerateEmail = async (
   lead: LeadFormData,
-  research: string,
+  research: ResearchResult,
   classification: ClassificationResult
-) => {
+): Promise<BotText> => {
   'use step';
 
-  console.log(`[Workflow] Starting email generation`);
+  console.log(`[Workflow] Generating personalized email for high-quality lead`);
 
-  // Determine which email type to generate based on classification
-  let email;
-  if (classification.classification === 'quality') {
-    // Quality leads get personalized email from SDR with meeting offer
-    console.log(`[Workflow] Generating personalized email for quality lead`);
-    email = await generateEmailForLead(lead, research, classification);
-  } else if (classification.classification === 'low-value') {
-    // Low-value leads get sales email from Vercel with configurable CTA (no meeting offer)
-    console.log(`[Workflow] Generating low-value sales email`);
-    email = await generateLowValueEmail(lead);
-  } else {
-    // Uncertain and support leads get generic email from Vercel with customers link
-    console.log(`[Workflow] Generating generic email for ${classification.classification} lead`);
-    email = await generateGenericEmail(lead);
-  }
+  // High-quality email: personalized from SDR with meeting offer
+  const highQualityEmail = await generateEmailForLead(lead, research.report, classification);
 
   console.log(`[Workflow] Email generation completed`);
 
-  return email;
+  return {
+    highQualityText: highQualityEmail.body,
+    lowQualityText: null,
+  };
 };
 
 /**
- * Step 4: Determine autonomy and outcome
- * Determines whether lead needs review or can be auto-processed
- * Based on classification type and confidence thresholds
+ * Status determination step
+ * Determines whether lead needs review or can auto-act based on:
+ * 1. Confidence vs threshold for the classification type
+ * 2. Rollout settings (enabled + percentage)
  */
-export const stepDetermineAutonomyAndOutcome = async (
-  classification: ClassificationResult
-) => {
+export const stepDetermineStatus = async (
+  classification: Classification,
+  confidence: number
+): Promise<{
+  needs_review: boolean;
+  applied_threshold: number;
+  status: LeadStatus;
+  sent_at: Date | null;
+  sent_by: string | null;
+}> => {
   'use step';
 
-  console.log(`[Workflow] Determining autonomy and outcome`);
+  console.log(`[Workflow] Determining status for ${classification} with confidence ${confidence}`);
 
-  // Get configuration settings for auto-action thresholds
-  const { getActiveConfiguration } = await import('@/lib/configuration-helpers');
-  const configuration = await getActiveConfiguration();
+  // Get configuration
+  const config = await getConfiguration();
 
-  const autoDeadLowValueThreshold = configuration.settings.autoDeadLowValueThreshold;
-  const autoDeadIrrelevantThreshold = configuration.settings.autoDeadIrrelevantThreshold;
-  const autoForwardDuplicateThreshold = configuration.settings.autoForwardDuplicateThreshold;
-  const autoForwardSupportThreshold = configuration.settings.autoForwardSupportThreshold;
+  // Get threshold for this classification type
+  const threshold = getThresholdForClassification(config, classification);
 
-  // Default: everything goes to review with pending outcome
-  let autonomy: 'review' | 'auto' = 'review';
-  let outcome: 'pending' | 'dead' | 'forwarded_account_team' | 'forwarded_support' = 'pending';
+  // Determine if needs review (confidence < threshold)
+  const needs_review = confidence < threshold;
 
-  // Check each classification type for auto-action eligibility
+  // Determine if should auto-send
+  const autoSend = !needs_review && shouldAutoSend(confidence, threshold, config.rollout);
 
-  // Duplicate: auto-forward to account team if confidence meets threshold
-  if (classification.classification === 'duplicate') {
-    if (classification.confidence >= autoForwardDuplicateThreshold) {
-      autonomy = 'auto';
-      outcome = 'forwarded_account_team';
-      console.log(
-        `[Workflow] Auto-forwarding duplicate to account team (confidence: ${classification.confidence} >= threshold: ${autoForwardDuplicateThreshold})`
-      );
-    } else {
-      console.log(
-        `[Workflow] Duplicate needs review (confidence: ${classification.confidence} < threshold: ${autoForwardDuplicateThreshold})`
-      );
-    }
-  }
+  // Determine status
+  let status: LeadStatus = 'review';
+  let sent_at: Date | null = null;
+  let sent_by: string | null = null;
 
-  // Support: auto-forward to support team if confidence meets threshold
-  else if (classification.classification === 'support') {
-    if (classification.confidence >= autoForwardSupportThreshold) {
-      autonomy = 'auto';
-      outcome = 'forwarded_support';
-      console.log(
-        `[Workflow] Auto-forwarding support request (confidence: ${classification.confidence} >= threshold: ${autoForwardSupportThreshold})`
-      );
-    } else {
-      console.log(
-        `[Workflow] Support request needs review (confidence: ${classification.confidence} < threshold: ${autoForwardSupportThreshold})`
-      );
-    }
-  }
-
-  // Low-value: auto-dead if confidence meets threshold (real opportunity but not a fit)
-  else if (classification.classification === 'low-value') {
-    if (classification.confidence >= autoDeadLowValueThreshold) {
-      autonomy = 'auto';
-      outcome = 'dead';
-      console.log(
-        `[Workflow] Auto-marking low-value as dead (confidence: ${classification.confidence} >= threshold: ${autoDeadLowValueThreshold})`
-      );
-    } else {
-      console.log(
-        `[Workflow] Low-value needs review (confidence: ${classification.confidence} < threshold: ${autoDeadLowValueThreshold})`
-      );
-    }
-  }
-
-  // Irrelevant: auto-dead if confidence meets threshold (spam, nonsense)
-  else if (classification.classification === 'irrelevant') {
-    if (classification.confidence >= autoDeadIrrelevantThreshold) {
-      autonomy = 'auto';
-      outcome = 'dead';
-      console.log(
-        `[Workflow] Auto-marking irrelevant as dead (confidence: ${classification.confidence} >= threshold: ${autoDeadIrrelevantThreshold})`
-      );
-    } else {
-      console.log(
-        `[Workflow] Irrelevant needs review (confidence: ${classification.confidence} < threshold: ${autoDeadIrrelevantThreshold})`
-      );
-    }
-  }
-
-  // Quality, uncertain, dead: always need review (no auto-action)
-  else {
+  if (autoSend) {
+    // Auto-send: mark as done immediately
+    status = 'done';
+    sent_at = new Date();
+    sent_by = 'bot';
     console.log(
-      `[Workflow] ${classification.classification} classification requires human review`
+      `[Workflow] Auto-sending: confidence ${confidence} >= threshold ${threshold}, rollout passed`
+    );
+  } else if (needs_review) {
+    console.log(
+      `[Workflow] Needs review: confidence ${confidence} < threshold ${threshold}`
+    );
+  } else {
+    // Passed threshold but didn't pass rollout - still goes to review
+    console.log(
+      `[Workflow] Rollout check failed: confidence ${confidence} >= threshold ${threshold}, but rollout blocked`
     );
   }
 
-  console.log(`[Workflow] Autonomy: ${autonomy}, Outcome: ${outcome}`);
-
-  return { autonomy, outcome };
+  return {
+    needs_review,
+    applied_threshold: threshold,
+    status,
+    sent_at,
+    sent_by,
+  };
 };

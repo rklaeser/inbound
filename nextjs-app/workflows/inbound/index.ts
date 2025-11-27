@@ -1,24 +1,35 @@
-import { LeadFormData, ClassificationResult, EmailGenerationResult } from '@/lib/types';
+import { LeadFormData, Classification, BotResearch, BotText, LeadStatus } from '@/lib/types';
 import {
   stepResearch,
-  stepQualify,
+  stepClassify,
   stepGenerateEmail,
-  stepDetermineAutonomyAndOutcome
+  stepDetermineStatus
 } from './steps';
 
 /**
  * Result type returned by the workflow
  */
 export interface WorkflowResult {
-  research: {
-    report: string;
-    jobTitle: string | null;
-    linkedinUrl: string | null;
-  };
-  qualification: ClassificationResult;
-  email: EmailGenerationResult | null;
-  autonomy: 'review' | 'auto';
-  outcome: 'pending' | 'dead' | 'forwarded_account_team' | 'forwarded_support';
+  // Bot research output
+  bot_research: BotResearch;
+
+  // Bot generated email text (both versions for flexibility)
+  bot_text: BotText | null;
+
+  // Whether lead needs review or can auto-send
+  needs_review: boolean;
+
+  // Threshold that was applied for this classification
+  applied_threshold: number;
+
+  // Initial status (review or done if auto-send)
+  status: LeadStatus;
+
+  // For auto-send: timestamp when sent
+  sent_at: Date | null;
+
+  // Who sent the email: "bot" for auto-send, null if not sent yet
+  sent_by: string | null;
 }
 
 /**
@@ -26,9 +37,9 @@ export interface WorkflowResult {
  *
  * Flow:
  * 1. Research - AI Agent gathers comprehensive information
- * 2. Qualify - AI classifies lead quality
- * 3. Generate Email - AI creates personalized response (for quality leads)
- * 4. Determine Autonomy & Outcome - Determine if auto-action or review needed, and what outcome
+ * 2. Classify - AI classifies lead type with confidence score
+ * 3. Generate Emails - AI creates email drafts (high-quality and low-quality versions)
+ * 4. Determine Status - Based on confidence vs threshold and rollout settings
  *
  * Returns all results for the API route to persist to database
  */
@@ -40,36 +51,43 @@ export const workflowInbound = async (data: LeadFormData): Promise<WorkflowResul
   // Step 1: Research the lead
   const research = await stepResearch(data);
 
-  // Step 2: Qualify the lead
-  const qualification = await stepQualify(data, research.report);
+  // Step 2: Classify the lead
+  const classification = await stepClassify(data, research);
 
-  // Step 3: Generate email for relevant leads
-  // Generate emails for quality, uncertain, support, and low-value leads
-  // Skip email for irrelevant, dead, and duplicate leads
-  let email: EmailGenerationResult | null = null;
-  if (
-    qualification.classification === 'quality' ||
-    qualification.classification === 'uncertain' ||
-    qualification.classification === 'support' ||
-    qualification.classification === 'low-value'
-  ) {
-    email = await stepGenerateEmail(data, research.report, qualification);
+  // Build bot_research object
+  const bot_research: BotResearch = {
+    timestamp: new Date(),
+    confidence: classification.confidence,
+    classification: classification.classification,
+    reasoning: classification.reasoning,
+  };
+
+  // Step 3: Generate email for high-quality leads only
+  // Other classifications use static templates or don't need emails
+  let bot_text: BotText | null = null;
+  if (classification.classification === 'high-quality') {
+    bot_text = await stepGenerateEmail(data, research, classification);
   } else {
     console.log(
-      `[Workflow] Skipping email generation for ${qualification.classification} lead`
+      `[Workflow] Skipping email generation for ${classification.classification} lead (uses static template or no email)`
     );
   }
 
-  // Step 4: Determine autonomy and outcome
-  const { autonomy, outcome } = await stepDetermineAutonomyAndOutcome(qualification);
+  // Step 4: Determine status (review vs done)
+  const { needs_review, applied_threshold, status, sent_at, sent_by } = await stepDetermineStatus(
+    classification.classification,
+    classification.confidence
+  );
 
-  console.log(`[Workflow] Workflow completed with autonomy: ${autonomy}, outcome: ${outcome}`);
+  console.log(`[Workflow] Workflow completed: status=${status}, needs_review=${needs_review}`);
 
   return {
-    research,
-    qualification,
-    email,
-    autonomy,
-    outcome
+    bot_research,
+    bot_text,
+    needs_review,
+    applied_threshold,
+    status,
+    sent_at,
+    sent_by,
   };
 };

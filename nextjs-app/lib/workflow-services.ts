@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { LeadFormData, ClassificationResult, EmailGenerationResult } from './types';
 import { findRelevantCaseStudies } from './case-study-matcher';
 import { detectDuplicate } from './salesforce-mock';
-import { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT, GENERIC_EMAIL_PROMPT, LOW_VALUE_EMAIL_PROMPT } from './prompts';
+import { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT, GENERIC_EMAIL_PROMPT } from './prompts';
 
 /**
  * Tools for Research Agent
@@ -184,7 +184,7 @@ Keep each field concise - single line responses only. No paragraphs.`,
  * Qualification Functions
  */
 const classificationSchema = z.object({
-  classification: z.enum(['quality', 'support', 'low-value', 'irrelevant', 'uncertain', 'dead', 'duplicate']),
+  classification: z.enum(['high-quality', 'low-quality', 'support', 'duplicate', 'irrelevant']),
   confidence: z.number().min(0).max(1),
   reasoning: z.string()
 });
@@ -242,18 +242,15 @@ export async function generateEmailForLead(
   classification: ClassificationResult
 ): Promise<EmailGenerationResult> {
   // Get configuration email template settings
-  const { getActiveConfiguration } = await import('./configuration-helpers');
-  const { getAccountSettings } = await import('./account-settings');
+  const { getConfiguration } = await import('./configuration-helpers');
+  const { DEFAULT_CONFIGURATION } = await import('./types');
 
-  const configuration = await getActiveConfiguration();
-  const accountSettings = await getAccountSettings();
+  const configuration = await getConfiguration();
+  const template = configuration.emailTemplates?.highQuality || DEFAULT_CONFIGURATION.emailTemplates.highQuality;
 
-  const subject = configuration.emailTemplate?.subject || 'Hi from Vercel';
   const firstName = lead.name.split(' ')[0];
-  const greeting = (configuration.emailTemplate?.greeting || 'Hi {firstName},').replace('{firstName}', firstName);
-  const callToAction = configuration.emailTemplate?.callToAction || "Let's schedule a quick 15-minute call to discuss how Vercel can help.";
-  const signOffText = configuration.emailTemplate?.signOff || 'Best,';
-  const signoff = `${signOffText}\n\n${accountSettings.sdr.name}\n${accountSettings.sdr.email}`;
+  const greeting = template.greeting.replace('{firstName}', firstName);
+  const signoff = `${template.signOff}\n\n${configuration.sdr.name}\n${configuration.sdr.email}`;
 
   const { object } = await generateObject({
     model: openai('gpt-4o'),
@@ -277,12 +274,11 @@ ${research}
 Generate ONLY the middle body content that addresses their specific inquiry and references relevant case studies. DO NOT include greeting or call-to-action - these will be added automatically.`
   });
 
-  // Construct full email: greeting + AI body + call-to-action + signoff
-  const fullBody = `${greeting}\n\n${object.body}\n\n${callToAction}\n\n${signoff}`;
-
+  // Return only the AI-generated body content
+  // Full email will be assembled at display/send time using template settings
   return {
-    subject: subject,
-    body: fullBody
+    subject: template.subject,
+    body: object.body
   };
 }
 
@@ -311,36 +307,48 @@ Generate a brief, generic response email from Vercel directing them to self-serv
   };
 }
 
-export async function generateLowValueEmail(
+// generateLowValueEmail removed - low-quality leads now use static template from configuration
+
+export async function generateSupportEmail(
   lead: LeadFormData
 ): Promise<EmailGenerationResult> {
-  // Get configuration for low-value CTA
-  const { getActiveConfiguration } = await import('./configuration-helpers');
-  const configuration = await getActiveConfiguration();
+  // Get configuration for support template
+  const { getConfiguration } = await import('./configuration-helpers');
+  const { DEFAULT_CONFIGURATION } = await import('./types');
+  const configuration = await getConfiguration();
 
-  const subject = 'Thanks for your interest in Vercel';
-  const signoff = 'The Vercel Team\nsales@vercel.com';
-  const callToAction = configuration.emailTemplate?.lowValueCallToAction ||
-    'I encourage you to explore our customer stories at https://vercel.com/customers to see how companies are using our platform.';
+  const template = configuration.emailTemplates?.support || DEFAULT_CONFIGURATION.emailTemplates.support;
+  const firstName = lead.name.split(' ')[0];
+  const greeting = template.greeting.replace('{firstName}', firstName);
+  const signoff = `${template.signOff}\n\n${template.senderName}\n${template.senderEmail}`;
 
-  const { object } = await generateObject({
-    model: openai('gpt-4o'),
-    schema: emailSchema,
-    prompt: `${LOW_VALUE_EMAIL_PROMPT}
-
-LEAD INFORMATION:
-- Name: ${lead.name}
-- Company: ${lead.company}
-- Message: ${lead.message}
-
-CALL-TO-ACTION TO INCLUDE:
-${callToAction}
-
-Generate a brief, sales-focused email acknowledging their interest and directing them to self-service resources. Include the call-to-action provided above.`
-  });
+  // Construct full email (no AI generation needed for support - use template directly)
+  const fullBody = `${greeting}\n\n${template.callToAction}\n\n${signoff}`;
 
   return {
-    subject: subject,
-    body: object.body + '\n\n' + signoff
+    subject: template.subject,
+    body: fullBody
+  };
+}
+
+export async function generateDuplicateEmail(
+  lead: LeadFormData
+): Promise<EmailGenerationResult> {
+  // Get configuration for duplicate template
+  const { getConfiguration } = await import('./configuration-helpers');
+  const { DEFAULT_CONFIGURATION } = await import('./types');
+  const configuration = await getConfiguration();
+
+  const template = configuration.emailTemplates?.duplicate || DEFAULT_CONFIGURATION.emailTemplates.duplicate;
+  const firstName = lead.name.split(' ')[0];
+  const greeting = template.greeting.replace('{firstName}', firstName);
+  const signoff = `${template.signOff}\n\n${template.senderName}\n${template.senderEmail}`;
+
+  // Construct full email (no AI generation needed for duplicate - use template directly)
+  const fullBody = `${greeting}\n\n${template.callToAction}\n\n${signoff}`;
+
+  return {
+    subject: template.subject,
+    body: fullBody
   };
 }

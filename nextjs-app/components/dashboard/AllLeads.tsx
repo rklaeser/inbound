@@ -10,10 +10,10 @@ import {
   TableCell,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { LeadBadge } from '@/components/shared/LeadBadge';
-import { Attribution } from '@/components/shared/Attribution';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { formatCompactTime, calculateTTR } from '@/lib/date-utils';
+import Image from 'next/image';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -21,11 +21,10 @@ import {
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { SearchableAuthorFilter } from '@/components/dashboard/SearchableAuthorFilter';
-import type { Lead, LeadClassification, LeadOutcome } from '@/lib/types';
+import type { Lead, Classification } from '@/lib/types';
+import { getCurrentClassification, STATUS_FILTER_OPTIONS, TYPE_FILTER_OPTIONS } from '@/lib/types';
 import type { DateRange } from 'react-day-picker';
-import { ACTIVE_OUTCOMES, getOutcomeColor } from '@/lib/outcomes';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
 
 interface AllLeadsProps {
@@ -41,46 +40,58 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
 
   // Filter state
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [selectedAuthor, setSelectedAuthor] = useState<string>("all");
-  const [selectedOutcomes, setSelectedOutcomes] = useState<Set<string>>(new Set());
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(
+    new Set(STATUS_FILTER_OPTIONS.map(s => s.key))
+  );
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(
+    new Set(TYPE_FILTER_OPTIONS.map(t => t.key))
+  );
 
-  // Helper functions for outcome multi-select
-  const toggleOutcome = (outcome: string) => {
-    setSelectedOutcomes(prev => {
+  // Demo toggle for visual treatment comparison
+  const [demoOption, setDemoOption] = useState<'A' | 'C'>('A');
+
+  // Helper functions for filter multi-select
+  const toggleStatus = (key: string) => {
+    setSelectedStatuses(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(outcome)) {
-        newSet.delete(outcome);
+      if (newSet.has(key)) {
+        newSet.delete(key);
       } else {
-        newSet.add(outcome);
+        newSet.add(key);
       }
       return newSet;
     });
   };
 
-  const outcomeDisplayText = useMemo(() => {
-    if (selectedOutcomes.size === 0) return "All Outcomes";
-    return `Outcome ${selectedOutcomes.size}/${ACTIVE_OUTCOMES.length}`;
-  }, [selectedOutcomes]);
-
-  // Extract unique authors from leads
-  const authors = useMemo(() => {
-    const authorSet = new Set<string>();
-    leads.forEach(lead => {
-      if (lead.reviewed_by) authorSet.add(lead.reviewed_by);
-      if (lead.edited_by) authorSet.add(lead.edited_by);
-      if (lead.closed_by) authorSet.add(lead.closed_by);
+  const toggleType = (key: string) => {
+    setSelectedTypes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
     });
-    // Add "Lead Agent" for system-created leads
-    authorSet.add("Lead Agent");
-    return Array.from(authorSet).sort();
-  }, [leads]);
+  };
+
+  const statusDisplayText = useMemo(() => {
+    return `Status ${selectedStatuses.size}/${STATUS_FILTER_OPTIONS.length}`;
+  }, [selectedStatuses]);
+
+  const typeDisplayText = useMemo(() => {
+    return `Type ${selectedTypes.size}/${TYPE_FILTER_OPTIONS.length}`;
+  }, [selectedTypes]);
 
   // Filter leads based on selected filters
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
       // Date range filter
       if (dateRange?.from || dateRange?.to) {
-        const leadDate = new Date(lead.created_at as any);
+        const leadDate = lead.status.received_at instanceof Date
+          ? lead.status.received_at
+          : new Date((lead.status.received_at as any).toDate?.() || lead.status.received_at);
+
         if (dateRange.from && leadDate < dateRange.from) return false;
         if (dateRange.to) {
           const endOfDay = new Date(dateRange.to);
@@ -89,47 +100,31 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
         }
       }
 
-      // Author filter
-      if (selectedAuthor !== "all") {
-        const leadAuthors = [
-          lead.reviewed_by,
-          lead.edited_by,
-          lead.closed_by,
-        ].filter(Boolean);
-
-        // Check if "Lead Agent" is selected and lead has no human authors
-        if (selectedAuthor === "Lead Agent") {
-          if (leadAuthors.length > 0) return false;
-        } else {
-          if (!leadAuthors.includes(selectedAuthor)) return false;
-        }
+      // Status filter - check lead.status.status
+      if (!selectedStatuses.has(lead.status.status)) {
+        return false;
       }
 
-      // Outcome filter
-      if (selectedOutcomes.size > 0) {
-        const outcomeKey = lead.outcome === null ? 'processing' : lead.outcome;
-        if (!selectedOutcomes.has(outcomeKey)) {
-          return false;
-        }
+      // Type filter - check classification
+      const classification = getCurrentClassification(lead) || 'unclassified';
+      if (!selectedTypes.has(classification)) {
+        return false;
       }
 
       return true;
     });
-  }, [leads, dateRange, selectedAuthor, selectedOutcomes]);
+  }, [leads, dateRange, selectedStatuses, selectedTypes]);
 
   useEffect(() => {
     // Set up real-time listener AFTER initial render
-    // This provides instant initial render + real-time updates
     const q = query(
       collection(db, 'leads'),
-      orderBy('created_at', 'desc')
+      orderBy('status.received_at', 'desc')
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        // Use docChanges() for incremental updates instead of rebuilding entire array
-        // This dramatically improves performance for large datasets
         setLeads((prevLeads) => {
           const leadMap = new Map(prevLeads.map(lead => [lead.id, lead]));
 
@@ -146,10 +141,18 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
             }
           });
 
-          // Convert back to array and sort by created_at desc
+          // Convert back to array and sort by received_at desc
           return Array.from(leadMap.values()).sort((a, b) => {
-            const aTime = a.created_at ? new Date(a.created_at as any).getTime() : 0;
-            const bTime = b.created_at ? new Date(b.created_at as any).getTime() : 0;
+            const aTime = a.status.received_at
+              ? (a.status.received_at instanceof Date
+                ? a.status.received_at.getTime()
+                : new Date((a.status.received_at as any).toDate?.() || a.status.received_at).getTime())
+              : 0;
+            const bTime = b.status.received_at
+              ? (b.status.received_at instanceof Date
+                ? b.status.received_at.getTime()
+                : new Date((b.status.received_at as any).toDate?.() || b.status.received_at).getTime())
+              : 0;
             return bTime - aTime;
           });
         });
@@ -188,48 +191,112 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
         {/* Date Range Picker */}
         <DateRangePicker date={dateRange} onDateChange={setDateRange} />
 
-        {/* Author Filter */}
-        <SearchableAuthorFilter
-          authors={authors}
-          selectedAuthor={selectedAuthor}
-          onAuthorChange={setSelectedAuthor}
-        />
-
-        {/* Outcome Filter */}
+        {/* Status Filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[200px] justify-start">
-              {outcomeDisplayText}
+            <Button variant="outline" className="justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {Array.from(selectedStatuses)
+                    .map((key) => {
+                      const option = STATUS_FILTER_OPTIONS.find(o => o.key === key);
+                      return (
+                        <div
+                          key={key}
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: option?.color }}
+                        />
+                      );
+                    })}
+                </div>
+                <span className="text-sm font-medium">
+                  {statusDisplayText}
+                </span>
+              </div>
+              <ChevronDown className="h-4 w-4 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-[200px]">
-            {ACTIVE_OUTCOMES.map((outcome) => (
+          <DropdownMenuContent align="start" className="w-[160px]">
+            {STATUS_FILTER_OPTIONS.map((option) => (
               <DropdownMenuCheckboxItem
-                key={outcome.key || 'processing'}
-                checked={selectedOutcomes.has(outcome.key || 'processing')}
-                onCheckedChange={() => toggleOutcome(outcome.key || 'processing')}
+                key={option.key}
+                checked={selectedStatuses.has(option.key)}
+                onCheckedChange={() => toggleStatus(option.key)}
                 onSelect={(e) => e.preventDefault()}
               >
                 <div
                   className="h-2 w-2 rounded-full mr-2 shrink-0"
-                  style={{ backgroundColor: getOutcomeColor(outcome.key) }}
+                  style={{ backgroundColor: option.color }}
                 />
-                {outcome.label}
+                {option.label}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Outcome Count Badge */}
+        {/* Type Filter */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {Array.from(selectedTypes)
+                    .slice(0, 3)
+                    .map((key) => {
+                      const option = TYPE_FILTER_OPTIONS.find(o => o.key === key);
+                      return (
+                        <div
+                          key={key}
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: option?.color }}
+                        />
+                      );
+                    })}
+                </div>
+                <span className="text-sm font-medium">
+                  {typeDisplayText}
+                </span>
+              </div>
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-[180px]">
+            {TYPE_FILTER_OPTIONS.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.key}
+                checked={selectedTypes.has(option.key)}
+                onCheckedChange={() => toggleType(option.key)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                <div
+                  className="h-2 w-2 rounded-full mr-2 shrink-0"
+                  style={{ backgroundColor: option.color }}
+                />
+                {option.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Demo Toggle - Visual Treatment Comparison */}
         <div className="ml-auto flex items-center gap-2 px-3 py-2 rounded-md bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
-          <div className="flex gap-1">
-            <div className="h-2 w-2 rounded-full bg-green-500" />
-            <div className="h-2 w-2 rounded-full bg-yellow-500" />
-            <div className="h-2 w-2 rounded-full bg-red-500" />
-          </div>
-          <span className="text-sm font-medium">
-            Showing {filteredLeads.length}/{leads.length}
-          </span>
+          <span className="text-xs text-muted-foreground">Demo:</span>
+          <Button
+            variant={demoOption === 'A' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => setDemoOption('A')}
+          >
+            Option A
+          </Button>
+          <Button
+            variant={demoOption === 'C' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => setDemoOption('C')}
+          >
+            Option C
+          </Button>
         </div>
       </div>
 
@@ -247,14 +314,23 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
               filteredLeads.map((lead) => {
                 // Check if this is a test lead and calculate pass/fail
                 const isTestLead = lead.metadata?.isTestLead;
+                const currentClassification = getCurrentClassification(lead);
                 const testPassed = isTestLead && lead.metadata?.expectedClassifications.includes(
-                  lead.classification as LeadClassification
+                  currentClassification as Classification
                 );
+
+                // Check if lead is completed (terminal state)
+                const isCompleted = lead.status.status === 'done';
+
+                // Apply visual treatment based on demo option
+                const rowClassName = demoOption === 'A'
+                  ? `cursor-pointer hover:bg-[#000000] ${isCompleted ? 'opacity-50' : ''}`
+                  : `cursor-pointer ${isCompleted ? 'bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.03)]' : 'hover:bg-[#000000]'}`;
 
                 return (
                   <TableRow
                     key={lead.id}
-                    className="cursor-pointer hover:bg-[#000000]"
+                    className={rowClassName}
                     style={{ borderColor: 'rgba(255,255,255,0.06)' }}
                     onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
                   >
@@ -272,7 +348,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                               Expected: <span className="text-foreground">{lead.metadata?.expectedClassifications.join(' or ')}</span>
                             </div>
                             <div className="text-muted-foreground">
-                              Got: <span className={testPassed ? "text-green-600" : "text-red-600"}>{lead.classification || 'none'}</span>
+                              Got: <span className={testPassed ? "text-green-600" : "text-red-600"}>{currentClassification || 'none'}</span>
                             </div>
                           </div>
                         </div>
@@ -283,8 +359,8 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                     {/* Company & Name - Stacked */}
                     <TableCell className="py-2.5">
                       <div className="flex flex-col gap-0.5">
-                        <div className="font-semibold text-sm">{lead.company}</div>
-                        <div className="text-xs text-muted-foreground">{lead.name}</div>
+                        <div className="font-semibold text-sm">{lead.submission.company}</div>
+                        <div className="text-xs text-muted-foreground">{lead.submission.leadName}</div>
                       </div>
                     </TableCell>
 
@@ -293,15 +369,48 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                       <LeadBadge lead={lead} />
                     </TableCell>
 
-                    {/* Attribution - shows most recent action */}
+                    {/* Received - when lead came in */}
                     <TableCell>
-                      {lead.closed_at ? (
-                        <Attribution date={lead.closed_at} by={lead.closed_by} />
-                      ) : lead.reviewed_at ? (
-                        <Attribution date={lead.reviewed_at} by={lead.reviewed_by} />
-                      ) : (
-                        <Attribution date={lead.created_at} by={null} />
-                      )}
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {formatCompactTime(lead.status.received_at)}
+                      </span>
+                    </TableCell>
+
+                    {/* Response - TTR + who resolved */}
+                    <TableCell>
+                      {(() => {
+                        const ttr = calculateTTR(lead.status.received_at, lead.status.sent_at);
+                        if (!ttr) {
+                          return <span className="font-mono text-xs text-muted-foreground">—</span>;
+                        }
+                        const sentBy = lead.status.sent_by;
+                        const isBot = sentBy === 'bot';
+                        return (
+                          <span className="font-mono text-xs flex items-center gap-1.5">
+                            <span style={{ color: '#fafafa' }}>{ttr}</span>
+                            <span className="text-muted-foreground">by</span>
+                            {isBot ? (
+                              <>
+                                <span>🤖</span>
+                                <span style={{ color: '#fafafa' }}>Bot</span>
+                              </>
+                            ) : sentBy ? (
+                              <>
+                                <Image
+                                  src="/profpic.jpeg"
+                                  alt={sentBy}
+                                  width={16}
+                                  height={16}
+                                  className="rounded-full"
+                                />
+                                <span style={{ color: '#fafafa' }}>{sentBy}</span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 );

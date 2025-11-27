@@ -1,12 +1,12 @@
 'use server';
 
 import { testData } from '@/lib/test-data';
-import type { LeadClassification } from '@/lib/types';
+import type { Classification } from '@/lib/types';
 
 export interface TestResult {
   testCase: string;
   label: string;
-  expectedClassifications: readonly LeadClassification[];
+  expectedClassifications: readonly (Classification | null)[];
   leadId: string;
   submitted: boolean;
   error?: string;
@@ -15,7 +15,6 @@ export interface TestResult {
 export interface TestRunResult {
   success: boolean;
   results: TestResult[];
-  configurationId: string;
   error?: string;
 }
 
@@ -86,14 +85,12 @@ export async function runTests(): Promise<TestRunResult> {
     return {
       success: true,
       results: testResults,
-      configurationId: '',
     };
   } catch (error) {
     console.error('[Test Runner] Fatal error:', error);
     return {
       success: false,
       results: [],
-      configurationId: '',
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
