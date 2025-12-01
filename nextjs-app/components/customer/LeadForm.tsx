@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, FlaskConical, CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { runTests, type TestRunResult } from '@/actions/run-tests';
-import { testData } from '@/lib/test-data';
+import { testData } from '@/lib/db/mock-leads';
 
 interface LeadFormProps {
   onSuccess: (leadData: { company: string; message: string; leadId: string }) => void;
@@ -68,6 +68,11 @@ const formSchema = z.object({
     .min(10, 'Message must be at least 10 characters')
     .max(500, 'Message must be at most 500 characters'),
 });
+
+// Helper to get test cases by classification
+const getTestCasesForClassification = (classification: string) =>
+  (Object.keys(testData) as (keyof typeof testData)[])
+    .filter((key) => testData[key].expectedClassification === classification);
 
 export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadFormProps) {
   const [testRunning, setTestRunning] = useState(false);
@@ -136,7 +141,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
           metadata: {
             isTestLead: true,
             testCase: type,
-            expectedClassifications: testCase.expectedClassification,
+            expectedClassification: testCase.expectedClassification,
           },
         }),
       });
@@ -194,106 +199,74 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
             <FlaskConical className="h-4 w-4" />
             <h3 className="text-sm font-medium">Quick Test</h3>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-2">
             {/* All Tests Button */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleRunTests}
-              disabled={testRunning}
-            >
-              {testRunning ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Running...
-                </>
-              ) : (
-                'All'
-              )}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRunTests}
+                disabled={testRunning}
+              >
+                {testRunning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  'All'
+                )}
+              </Button>
+            </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('support')}
-              disabled={testRunning}
-            >
-              Support
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('fake')}
-              disabled={testRunning}
-            >
-              Irrelevant (Fake)
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('quality')}
-              disabled={testRunning}
-            >
-              High-Quality
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('weak')}
-              disabled={testRunning}
-            >
-              Low-Quality
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('duplicate')}
-              disabled={testRunning}
-            >
-              Duplicate
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('appleQuality')}
-              disabled={testRunning}
-            >
-              Quality (Apple)
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('appleWeak')}
-              disabled={testRunning}
-            >
-              Uncertain (Researcher)
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('appleAmbiguous')}
-              disabled={testRunning}
-            >
-              Uncertain (Employee)
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fillTestData('mcmasterCarr')}
-              disabled={testRunning}
-            >
-              Quality (McMaster-Carr)
-            </Button>
+            {/* High Quality */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-emerald-500 w-20">High Quality</span>
+              <div className="flex flex-wrap gap-2">
+                {getTestCasesForClassification('high-quality').map((key) => (
+                  <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
+                    {testData[key].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Low Quality */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-amber-500 w-20">Low Quality</span>
+              <div className="flex flex-wrap gap-2">
+                {getTestCasesForClassification('low-quality').map((key) => (
+                  <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
+                    {testData[key].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Support */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-500 w-20">Support</span>
+              <div className="flex flex-wrap gap-2">
+                {getTestCasesForClassification('support').map((key) => (
+                  <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
+                    {testData[key].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Duplicate */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-purple-500 w-20">Duplicate</span>
+              <div className="flex flex-wrap gap-2">
+                {getTestCasesForClassification('duplicate').map((key) => (
+                  <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
+                    {testData[key].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Test Results Summary */}

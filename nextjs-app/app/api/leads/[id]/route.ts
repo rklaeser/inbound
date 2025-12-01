@@ -4,8 +4,28 @@
 // PATCH /api/leads/[id]
 // Update individual lead
 
-import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { adminDb } from "@/lib/db";
+import { successResponse, ApiErrors } from "@/lib/api";
+
+// Schema for allowed PATCH updates
+// This whitelist prevents arbitrary field updates
+const leadUpdateSchema = z.object({
+  // Edit note for context (reroute reasons, etc.)
+  edit_note: z.string().nullable().optional(),
+  // Matched case studies can be updated
+  matched_case_studies: z.array(z.object({
+    caseStudyId: z.string(),
+    company: z.string(),
+    industry: z.string(),
+    url: z.string(),
+    matchType: z.enum(['industry', 'problem', 'mentioned']),
+    matchReason: z.string(),
+    logoSvg: z.string().optional(),
+    featuredText: z.string().optional(),
+  })).optional(),
+}).strict(); // strict() rejects unknown fields
 
 export async function GET(
   request: NextRequest,
@@ -18,33 +38,14 @@ export async function GET(
     const leadDoc = await adminDb.collection("leads").doc(id).get();
 
     if (!leadDoc.exists) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Lead not found",
-        },
-        { status: 404 }
-      );
+      return ApiErrors.notFound("Lead");
     }
 
     const leadData = leadDoc.data();
-
-    return NextResponse.json({
-      success: true,
-      lead: {
-        id: leadDoc.id,
-        ...leadData,
-      },
-    });
+    return successResponse({ lead: { id: leadDoc.id, ...leadData } });
   } catch (error) {
     console.error("Error fetching lead:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to fetch lead",
-      },
-      { status: 500 }
-    );
+    return ApiErrors.internal("Failed to fetch lead");
   }
 }
 
@@ -56,49 +57,31 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    // Check if lead exists
-    const leadDoc = await adminDb.collection("leads").doc(id).get();
-
-    if (!leadDoc.exists) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Lead not found",
-        },
-        { status: 404 }
-      );
+    // Validate input against whitelist schema
+    const validationResult = leadUpdateSchema.safeParse(body);
+    if (!validationResult.success) {
+      return ApiErrors.validationError(validationResult.error.errors);
     }
 
-    // Update lead document
-    // Filter out undefined values and id field
-    const updateData: any = {};
-    Object.keys(body).forEach((key) => {
-      if (body[key] !== undefined && key !== "id") {
-        updateData[key] = body[key];
-      }
-    });
+    // Check if lead exists
+    const leadDoc = await adminDb.collection("leads").doc(id).get();
+    if (!leadDoc.exists) {
+      return ApiErrors.notFound("Lead");
+    }
 
-    await adminDb.collection("leads").doc(id).update(updateData);
+    // Only update validated fields (whitelist approach)
+    const updateData = validationResult.data;
+
+    // Only perform update if there are fields to update
+    if (Object.keys(updateData).length > 0) {
+      await adminDb.collection("leads").doc(id).update(updateData);
+    }
 
     // Fetch updated lead
     const updatedDoc = await adminDb.collection("leads").doc(id).get();
-    const updatedData = updatedDoc.data();
-
-    return NextResponse.json({
-      success: true,
-      lead: {
-        id: updatedDoc.id,
-        ...updatedData,
-      },
-    });
+    return successResponse({ lead: { id: updatedDoc.id, ...updatedDoc.data() } });
   } catch (error) {
     console.error("Error updating lead:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to update lead",
-      },
-      { status: 500 }
-    );
+    return ApiErrors.internal("Failed to update lead");
   }
 }

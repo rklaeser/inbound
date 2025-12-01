@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAllCaseStudies, updateCaseStudy } from '@/lib/firebase-case-studies';
+import { getAllCaseStudies, updateCaseStudy } from '@/lib/case-studies';
 
 /**
  * POST /api/dev/migrate-featured-text

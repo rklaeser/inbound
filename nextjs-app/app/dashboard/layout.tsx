@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { VercelLogo } from '@/components/ui/vercel-logo';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firestore';
+import { db } from '@/lib/db/client';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
 
 type TabValue = 'leads' | 'analytics' | 'settings' | 'case-studies';

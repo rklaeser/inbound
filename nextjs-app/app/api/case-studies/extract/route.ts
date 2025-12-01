@@ -2,30 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
-import { createCaseStudy } from '@/lib/firebase-case-studies';
-import type { Industry, VercelProduct } from '@/lib/case-studies';
-
-const INDUSTRIES: Industry[] = [
-  'Software',
-  'AI',
-  'Retail',
-  'Business Services',
-  'Finance & Insurance',
-  'Media',
-  'Healthcare',
-  'Energy & Utilities',
-];
-
-const PRODUCTS: VercelProduct[] = [
-  'Next.js',
-  'Preview Deployments',
-  'Integrations',
-  'ISR',
-  'Edge Functions',
-  'Image Optimization',
-  'Analytics',
-  'Vercel AI SDK',
-];
+import {
+  createCaseStudy,
+  INDUSTRIES,
+  PRODUCTS,
+  type Industry,
+  type VercelProduct,
+} from '@/lib/case-studies';
 
 const caseStudySchema = z.object({
   company: z.string().describe('The company name featured in the case study'),

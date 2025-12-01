@@ -1,12 +1,12 @@
 'use server';
 
-import { testData } from '@/lib/test-data';
+import { testData } from '@/lib/db/mock-leads';
 import type { Classification } from '@/lib/types';
 
 export interface TestResult {
   testCase: string;
   label: string;
-  expectedClassifications: readonly (Classification | null)[];
+  expectedClassification: Classification;
   leadId: string;
   submitted: boolean;
   error?: string;
@@ -45,7 +45,7 @@ export async function runTests(): Promise<TestRunResult> {
             metadata: {
               isTestLead: true,
               testCase: key,
-              expectedClassifications: testCase.expectedClassification,
+              expectedClassification: testCase.expectedClassification,
             },
           }),
         });
@@ -60,7 +60,7 @@ export async function runTests(): Promise<TestRunResult> {
         testResults.push({
           testCase: key,
           label: testCase.label,
-          expectedClassifications: testCase.expectedClassification,
+          expectedClassification: testCase.expectedClassification,
           leadId: submitResult.leadId,
           submitted: true,
         });
@@ -71,7 +71,7 @@ export async function runTests(): Promise<TestRunResult> {
         testResults.push({
           testCase: key,
           label: testCase.label,
-          expectedClassifications: testCase.expectedClassification,
+          expectedClassification: testCase.expectedClassification,
           leadId: '',
           submitted: false,
           error: error instanceof Error ? error.message : 'Unknown error',

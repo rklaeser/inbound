@@ -1,12 +1,16 @@
 import CaseStudies from '@/components/dashboard/CaseStudies';
-import { getAllCaseStudiesServer } from '@/lib/firestore-server';
+import { getAllCaseStudiesServer } from '@/lib/db';
+import { getConfiguration } from '@/lib/configuration-helpers';
 
 // Cache for 60 seconds - serves cached data instantly, revalidates in background
 export const revalidate = 60;
 
 export default async function CaseStudiesPage() {
   // Fetch on server - cached by Next.js
-  const caseStudies = await getAllCaseStudiesServer();
+  const [caseStudies, configuration] = await Promise.all([
+    getAllCaseStudiesServer(),
+    getConfiguration().catch(() => null),
+  ]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -16,7 +20,10 @@ export default async function CaseStudiesPage() {
           Manage customer success stories for lead matching
         </p>
       </div>
-      <CaseStudies initialCaseStudies={caseStudies} />
+      <CaseStudies
+        initialCaseStudies={caseStudies}
+        initialDefaultCaseStudyId={configuration?.defaultCaseStudyId ?? null}
+      />
     </div>
   );
 }

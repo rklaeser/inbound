@@ -3,21 +3,34 @@ import {
   qualifyLead,
   generateEmailForLead,
 } from '@/lib/workflow-services';
-import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration } from '@/lib/types';
+import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration, MatchedCaseStudy } from '@/lib/types';
 import { getThresholdForClassification, shouldAutoSend } from '@/lib/configuration-helpers';
+import { findRelevantCaseStudiesVectorWithReason, type Industry } from '@/lib/case-studies';
+import { caseStudyToMatchedCaseStudy } from '@/lib/email';
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+/**
+ * Research result with structured data
+ */
+export interface ResearchResult {
+  report: string;
+  industry: Industry | null;
+}
 
 /**
  * Research step - gather lead information
  * Uses AI Agent with tools to collect comprehensive background data
- * Case studies are discovered by the research agent's findCaseStudies tool
+ * Returns structured data including the research report and extracted industry
  */
-export const stepResearch = async (lead: LeadFormData): Promise<string> => {
+export const stepResearch = async (lead: LeadFormData): Promise<ResearchResult> => {
   'use step';
 
   console.log(`[Workflow] Starting research for lead: ${lead.company}`);
 
-  // Run research agent - it will call findCaseStudies tool internally
-  const { text: research } = await leadResearcher.generate({
+  // Run research agent to gather company and person information
+  const { text: researchText } = await leadResearcher.generate({
     prompt: `Research this inbound lead:
 - Name: ${lead.name}
 - Email: ${lead.email}
@@ -27,9 +40,45 @@ export const stepResearch = async (lead: LeadFormData): Promise<string> => {
 Provide a comprehensive research report.`
   });
 
-  console.log(`[Workflow] Research completed`);
+  console.log(`[Workflow] Research completed, extracting industry...`);
 
-  return research;
+  // Extract industry from research text using AI
+  const industrySchema = z.object({
+    industry: z.enum([
+      'AI',
+      'Software',
+      'Retail',
+      'Business Services',
+      'Finance & Insurance',
+      'Media',
+      'Healthcare',
+      'Energy & Utilities',
+    ]).nullable().describe('The industry extracted from the research report, or null if not found or unclear'),
+  });
+
+  const { object: industryResult } = await generateObject({
+    model: openai('gpt-4o'),
+    schema: industrySchema,
+    prompt: `Extract the industry from this research report. Look for the "Industry:" field in the Company section.
+
+RESEARCH REPORT:
+${researchText}
+
+If the industry is listed as "Unknown" or not found, return null. Otherwise, return the industry value matching one of the available industries.`,
+  });
+
+  const industry = industryResult.industry;
+
+  if (industry) {
+    console.log(`[Workflow] Extracted industry from research: ${industry}`);
+  } else {
+    console.log(`[Workflow] No industry found in research report`);
+  }
+
+  return {
+    report: researchText,
+    industry,
+  };
 };
 
 /**
@@ -38,14 +87,14 @@ Provide a comprehensive research report.`
  */
 export const stepClassify = async (
   lead: LeadFormData,
-  research: string
+  research: ResearchResult
 ): Promise<ClassificationResult> => {
   'use step';
 
   console.log(`[Workflow] Starting classification`);
 
-  // Run AI classification
-  const qualification = await qualifyLead(lead, research);
+  // Run AI classification using the research report text
+  const qualification = await qualifyLead(lead, research.report);
 
   console.log(
     `[Workflow] Classification completed: ${qualification.classification} (confidence: ${qualification.confidence})`
@@ -63,13 +112,60 @@ export interface EmailGenerationResult {
 }
 
 /**
+ * Match case studies step - finds relevant case studies for the lead
+ * Only runs if experimental.caseStudies is enabled and research provides an industry
+ * Returns matched case studies with matchType and matchReason
+ */
+export const stepMatchCaseStudies = async (
+  lead: LeadFormData,
+  research: ResearchResult,
+  enabled: boolean
+): Promise<MatchedCaseStudy[]> => {
+  'use step';
+
+  if (!enabled) {
+    return [];
+  }
+
+  // Industry should be checked before calling this step, but double-check for safety
+  if (!research.industry) {
+    console.log(`[Workflow] Warning: stepMatchCaseStudies called without industry`);
+    return [];
+  }
+
+  console.log(`[Workflow] Matching case studies for ${lead.company} (industry: ${research.industry})`);
+
+  // Use RAG-based vector search to find the most relevant case study
+  // Industry is included in the query to boost industry matches
+  const vectorMatches = await findRelevantCaseStudiesVectorWithReason(
+    { company: lead.company, message: lead.message },
+    1, // Return only 1 case study
+    research.industry
+  );
+
+  // Convert to MatchedCaseStudy format
+  const matchedCaseStudies: MatchedCaseStudy[] = vectorMatches.map(match => {
+    // Determine match type based on whether industry matches
+    const matchType = research.industry && match.caseStudy.industry === research.industry
+      ? 'industry'
+      : 'problem';
+    
+    return caseStudyToMatchedCaseStudy(match.caseStudy, matchType, match.matchReason);
+  });
+
+  console.log(`[Workflow] Matched ${matchedCaseStudies.length} case study using RAG vector search`);
+
+  return matchedCaseStudies;
+};
+
+/**
  * Email generation step - create personalized high-quality email
  * Only called for high-quality leads; other classifications use static templates
  * Returns the email body and which case studies were mentioned
  */
 export const stepGenerateEmail = async (
   lead: LeadFormData,
-  research: string,
+  research: ResearchResult,
   classification: ClassificationResult
 ): Promise<EmailGenerationResult> => {
   'use step';

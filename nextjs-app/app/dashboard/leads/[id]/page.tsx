@@ -3,10 +3,10 @@
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firestore';
+import { db } from '@/lib/db/client';
 import type { Lead, Classification, Configuration } from '@/lib/types';
 import { getCurrentClassification, DEFAULT_CONFIGURATION, getClassificationDisplay, CLASSIFICATIONS, getClassificationLabel } from '@/lib/types';
-import { extractFirstName, getBaseUrl } from '@/lib/email-helpers';
+import { extractFirstName, getBaseUrl } from '@/lib/email/helpers';
 import { calculateTTR } from '@/lib/date-utils';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { CaseStudyEditor } from '@/components/dashboard/CaseStudyEditor';
@@ -120,9 +120,9 @@ export default function LeadDetailPage({
         // email.text contains the fully assembled email
         return getEmailContent();
       case 'low-quality': {
-        // Use configuration template (HTML)
+        // Use configuration template (HTML) - replace placeholder
         const lowQualityTemplate = configuration.emailTemplates?.lowQuality || defaultTemplates.lowQuality;
-        return lowQualityTemplate.body;
+        return lowQualityTemplate.body.replace(/{firstName}/g, firstName);
       }
       case 'support': {
         // Templates are HTML - replace all placeholders
@@ -253,23 +253,19 @@ export default function LeadDetailPage({
 
   // Auto-save handler for the email editor
   const handleEmailSave = async (html: string) => {
-    await fetch(`/api/leads/${id}/review`, {
+    await fetch(`/api/leads/${id}/review/edit`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'edit',
-        email_text: html,
-      }),
+      body: JSON.stringify({ email_text: html }),
     });
   };
 
   const handleApprove = async () => {
     setIsSending(true);
     try {
-      await fetch(`/api/leads/${id}/review`, {
-        method: 'PATCH',
+      await fetch(`/api/leads/${id}/review/approve`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve' }),
       });
       // Stay on page - the real-time listener will update the UI to show "Sent" status
     } catch (error) {
@@ -281,13 +277,10 @@ export default function LeadDetailPage({
 
   const handleReclassifyTo = async (newClassification: Classification) => {
     try {
-      await fetch(`/api/leads/${id}/review`, {
-        method: 'PATCH',
+      await fetch(`/api/leads/${id}/review/reclassify`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reclassify',
-          new_classification: newClassification
-        }),
+        body: JSON.stringify({ new_classification: newClassification }),
       });
     } catch (error) {
       console.error('Error reclassifying lead:', error);
@@ -954,11 +947,14 @@ export default function LeadDetailPage({
               if (c.author === 'bot') {
                 actor = 'Bot';
                 avatar = 'bot';
-              } else if (c.classification === 'support' || c.classification === 'internal-reroute') {
+              } else if (c.classification === 'support' || c.classification === 'support-reroute') {
                 actor = 'Support Team';
                 avatar = 'system';
-              } else if (c.classification === 'duplicate' || c.classification === 'customer-reroute') {
-                actor = 'Account Team';
+              } else if (c.classification === 'duplicate' || c.classification === 'sales-reroute') {
+                actor = 'Sales Team';
+                avatar = 'system';
+              } else if (c.classification === 'customer-reroute') {
+                actor = 'Customer';
                 avatar = 'system';
               } else {
                 actor = configuration?.sdr?.name || DEFAULT_CONFIGURATION.sdr.name;
@@ -1183,11 +1179,12 @@ function TimelineItem({
 function getClassificationColor(classification: Classification): string {
   const colors: Record<Classification, string> = {
     'high-quality': '34, 197, 94',      // emerald-500
-    'low-quality': '245, 158, 11',      // amber-500
+    'low-quality': '161, 161, 161',     // gray
     'support': '59, 130, 246',          // blue-500
     'duplicate': '168, 85, 247',        // purple-500
     'customer-reroute': '245, 158, 11', // amber-500
-    'internal-reroute': '161, 161, 161', // gray
+    'support-reroute': '6, 182, 212',   // cyan-500
+    'sales-reroute': '236, 72, 153',    // pink-500
   };
   return colors[classification] || '161, 161, 161';
 }

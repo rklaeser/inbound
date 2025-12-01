@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { docs } from '@/lib/docs';
+import { requirements } from '@/lib/db/data-requirements';
 
 export async function GET() {
   try {
-    return NextResponse.json(docs);
+    return NextResponse.json(requirements);
   } catch (error) {
-    console.error('Error loading documentation:', error);
+    console.error('Error loading requirements:', error);
     return NextResponse.json(
-      { error: 'Failed to load documentation' },
+      { error: 'Failed to load requirements' },
       { status: 500 }
     );
   }

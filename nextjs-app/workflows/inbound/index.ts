@@ -4,7 +4,9 @@ import {
   stepResearch,
   stepClassify,
   stepGenerateEmail,
-  stepDetermineStatus
+  stepDetermineStatus,
+  stepMatchCaseStudies,
+  type ResearchResult
 } from './steps';
 
 /**
@@ -18,31 +20,8 @@ export interface WorkflowInput {
     thresholds: Configuration['thresholds'];
     rollout: Configuration['rollout'];
     allowHighQualityAutoSend: boolean;
+    experimentalCaseStudies: boolean; // Whether case studies feature is enabled
   };
-}
-
-/**
- * Look up full case study data for company names mentioned in email
- * Uses pre-fetched case studies (no Firestore call - workflow runtime lacks setTimeout)
- */
-function getCaseStudiesForCompanies(companyNames: string[], allCaseStudies: CaseStudy[]): MatchedCaseStudy[] {
-  const result: MatchedCaseStudy[] = [];
-  for (const name of companyNames) {
-    const cs = allCaseStudies.find(c => c.company.toLowerCase() === name.toLowerCase());
-    if (cs) {
-      result.push({
-        caseStudyId: cs.id,
-        company: cs.company,
-        industry: cs.industry,
-        url: cs.url,
-        matchType: 'mentioned',
-        matchReason: 'Mentioned in email',
-        logoSvg: cs.logoSvg,
-        featuredText: cs.featuredText,
-      });
-    }
-  }
-  return result;
 }
 
 /**
@@ -71,7 +50,7 @@ export interface WorkflowResult {
   // Who sent the email: "bot" for auto-send, null if not sent yet
   sent_by: string | null;
 
-  // Case studies mentioned in the email for customer-facing display
+  // Case studies for customer-facing display (manually added by SDRs, not extracted from emails)
   matched_case_studies: MatchedCaseStudy[];
 }
 
@@ -92,11 +71,20 @@ export interface WorkflowResult {
 export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowResult> => {
   'use workflow';
 
-  const { lead: data, caseStudies, config } = input;
+  const { lead: data, config } = input;
   console.log(`[Workflow] Starting inbound workflow for ${data.company}`);
 
-  // Step 1: Research the lead (agent discovers case studies via findCaseStudies tool)
+  // Step 1: Research the lead
   const research = await stepResearch(data);
+
+  // Step 1.5: Match case studies (only if feature is enabled AND industry was found)
+  // Skip entirely if no industry - don't even call the step
+  let matched_case_studies: MatchedCaseStudy[] = [];
+  if (config.experimentalCaseStudies && research.industry) {
+    matched_case_studies = await stepMatchCaseStudies(data, research, true);
+  } else if (!research.industry) {
+    console.log(`[Workflow] Skipping case study matching - no industry found in research`);
+  }
 
   // Step 2: Classify the lead
   const classification = await stepClassify(data, research);
@@ -108,20 +96,15 @@ export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowRes
     classification: classification.classification,
     reasoning: classification.reasoning,
     existingCustomer: classification.existingCustomer,
-    researchReport: research,
+    researchReport: research.report,
   };
 
   // Step 3: Generate email for high-quality leads only
   // Other classifications use static templates or don't need emails
   let emailBody: string | null = null;
-  let matched_case_studies: MatchedCaseStudy[] = [];
 
   if (classification.classification === 'high-quality') {
     const emailResult = await stepGenerateEmail(data, research, classification);
-
-    // Look up full case study data for companies mentioned in email
-    matched_case_studies = getCaseStudiesForCompanies(emailResult.includedCaseStudies, caseStudies);
-    console.log(`[Workflow] Email mentions ${matched_case_studies.length} case studies: ${emailResult.includedCaseStudies.join(', ')}`);
 
     // Return just the body - submit route will assemble full email
     emailBody = emailResult.body;

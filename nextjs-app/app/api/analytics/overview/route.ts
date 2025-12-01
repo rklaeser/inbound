@@ -2,7 +2,7 @@
 // Get analytics overview based on the new data model
 
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
+import { adminDb } from "@/lib/db";
 import type { Lead, Classification } from "@/lib/types";
 import { getTerminalState, getCurrentClassification, wasReclassified } from "@/lib/types";
 
@@ -52,11 +52,19 @@ interface AnalyticsData {
   forwardedSupport: number;
   forwardedAccountTeam: number;
 
+  // Reroute counts
+  customerReroutes: number;
+  supportReroutes: number;
+  salesReroutes: number;
+
   classificationBreakdown: {
     'high-quality': number;
     'low-quality': number;
     support: number;
     duplicate: number;
+    'customer-reroute': number;
+    'support-reroute': number;
+    'sales-reroute': number;
   };
 
   autoSendRate: number;
@@ -106,6 +114,9 @@ export async function GET() {
     let sentGeneric = 0;
     let forwardedSupport = 0;
     let forwardedAccountTeam = 0;
+    let customerReroutes = 0;
+    let supportReroutes = 0;
+    let salesReroutes = 0;
 
     leads.forEach((lead) => {
       const terminalState = getTerminalState(lead);
@@ -122,6 +133,15 @@ export async function GET() {
         case "forwarded_account_team":
           forwardedAccountTeam++;
           break;
+        case "customer_reroute":
+          customerReroutes++;
+          break;
+        case "support_reroute":
+          supportReroutes++;
+          break;
+        case "sales_reroute":
+          salesReroutes++;
+          break;
       }
     });
 
@@ -131,6 +151,9 @@ export async function GET() {
       "low-quality": 0,
       support: 0,
       duplicate: 0,
+      "customer-reroute": 0,
+      "support-reroute": 0,
+      "sales-reroute": 0,
     };
 
     leads.forEach((lead) => {
@@ -377,6 +400,9 @@ export async function GET() {
       sentGeneric,
       forwardedSupport,
       forwardedAccountTeam,
+      customerReroutes,
+      supportReroutes,
+      salesReroutes,
       classificationBreakdown,
       autoSendRate: Math.round(autoSendRate * 100) / 100,
       humanOverrideRate: Math.round(humanOverrideRate * 100) / 100,

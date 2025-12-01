@@ -2,15 +2,15 @@
 // Accept new lead from form submission
 
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
+import { adminDb } from "@/lib/db";
 import type { Lead, Classification, LeadStatus, BotResearch, Email } from "@/lib/types";
 import { z } from "zod";
 import { start } from "workflow/api";
 import { workflowInbound } from "@/workflows/inbound";
 import { getConfiguration } from "@/lib/configuration-helpers";
-import { getCachedCaseStudies } from "@/lib/case-study-matcher";
-import { detectDuplicate } from "@/lib/salesforce-mock";
-import { assembleEmail, extractFirstName } from "@/lib/email-helpers";
+import { getCachedCaseStudies } from "@/lib/case-studies";
+import { detectDuplicate } from "@/lib/db/mock-crm";
+import { assembleEmail, extractFirstName } from "@/lib/email";
 
 // Validation schema
 const leadFormSchema = z.object({
@@ -21,7 +21,7 @@ const leadFormSchema = z.object({
   metadata: z.object({
     isTestLead: z.boolean(),
     testCase: z.string(),
-    expectedClassifications: z.array(z.string()),
+    expectedClassification: z.string(),
   }).optional(),
 });
 
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
           metadata: {
             isTestLead: leadData.metadata.isTestLead,
             testCase: leadData.metadata.testCase,
-            expectedClassifications: leadData.metadata.expectedClassifications as Classification[],
+            expectedClassification: leadData.metadata.expectedClassification as Classification,
           }
         }),
       };
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           isTestLead: leadData.metadata.isTestLead,
           testCase: leadData.metadata.testCase,
-          expectedClassifications: leadData.metadata.expectedClassifications as Classification[],
+          expectedClassification: leadData.metadata.expectedClassification as Classification,
         }
       }),
     };
@@ -190,6 +190,7 @@ export async function POST(request: NextRequest) {
         thresholds: config.thresholds,
         rollout: config.rollout,
         allowHighQualityAutoSend: config.allowHighQualityAutoSend,
+        experimentalCaseStudies: config.experimental?.caseStudies ?? false,
       }
     }])
       .then(async (run) => {

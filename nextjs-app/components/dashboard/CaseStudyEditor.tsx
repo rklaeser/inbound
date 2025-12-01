@@ -4,15 +4,8 @@ import { useState, useEffect } from 'react';
 import { ChevronUp, ChevronDown, X, Plus, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MatchedCaseStudy } from '@/lib/types';
-
-interface CaseStudy {
-  id: string;
-  company: string;
-  industry: string;
-  url: string;
-  logoSvg: string;
-  featuredText: string;
-}
+import type { CaseStudy } from '@/lib/case-studies/types';
+import { caseStudyToMatchedCaseStudy } from '@/lib/email/helpers';
 
 interface CaseStudyEditorProps {
   leadId: string;
@@ -103,16 +96,8 @@ export function CaseStudyEditor({
       return;
     }
 
-    const newCaseStudy: MatchedCaseStudy = {
-      caseStudyId: cs.id,
-      company: cs.company,
-      industry: cs.industry,
-      url: cs.url,
-      matchType: 'mentioned',
-      matchReason: 'Manually added by SDR',
-      logoSvg: cs.logoSvg,
-      featuredText: cs.featuredText,
-    };
+    // Use shared helper function to transform CaseStudy to MatchedCaseStudy
+    const newCaseStudy = caseStudyToMatchedCaseStudy(cs, 'mentioned', 'Manually added by SDR');
 
     const newList = [...localCaseStudies, newCaseStudy];
     setLocalCaseStudies(newList);

@@ -2,7 +2,7 @@
 // Update matched case studies for a lead (recorded as human edit)
 
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
+import { adminDb } from "@/lib/db";
 import { z } from "zod";
 import type { Lead } from "@/lib/types";
 

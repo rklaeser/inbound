@@ -1,9 +1,10 @@
 // POST /api/leads/[id]/classify
 // Handle human classification for leads that need manual classification
 
-import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firestore-admin';
+import { NextRequest } from 'next/server';
+import { adminDb } from '@/lib/db';
 import type { Lead, Classification, ClassificationEntry } from '@/lib/types';
+import { successResponse, ApiErrors } from '@/lib/api';
 
 export async function POST(
   request: NextRequest,
@@ -14,10 +15,7 @@ export async function POST(
     const { id: leadId } = await params;
 
     if (!classification) {
-      return NextResponse.json(
-        { success: false, error: 'Classification is required' },
-        { status: 400 }
-      );
+      return ApiErrors.badRequest('Classification is required');
     }
 
     // Validate classification value
@@ -25,19 +23,13 @@ export async function POST(
     // automatically via CRM lookup before classification runs
     const validClassifications: Classification[] = ['high-quality', 'low-quality', 'support'];
     if (!validClassifications.includes(classification)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid classification' },
-        { status: 400 }
-      );
+      return ApiErrors.badRequest('Invalid classification');
     }
 
     // Get lead
     const leadDoc = await adminDb.collection('leads').doc(leadId).get();
     if (!leadDoc.exists) {
-      return NextResponse.json(
-        { success: false, error: 'Lead not found' },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Lead');
     }
 
     const lead = { id: leadDoc.id, ...leadDoc.data() } as Lead;
@@ -66,7 +58,7 @@ export async function POST(
         // Generate personalized email for approval
         const { generateEmailForLead } = await import('@/lib/workflow-services');
         const { getConfiguration } = await import('@/lib/configuration-helpers');
-        const { extractFirstName, assembleEmail } = await import('@/lib/email-helpers');
+        const { extractFirstName, assembleEmail } = await import('@/lib/email');
 
         try {
           const emailResult = await generateEmailForLead({
@@ -115,45 +107,21 @@ export async function POST(
       case 'low-quality': {
         // Low-quality leads use static template and auto-send
         const { getConfiguration } = await import('@/lib/configuration-helpers');
-        const { sendEmail } = await import('@/lib/send-email');
-        const { extractFirstName, renderCaseStudiesHtml, caseStudyToMatchedCaseStudy } = await import('@/lib/email-helpers');
-        const { getCaseStudyByIdServer } = await import('@/lib/firestore-server');
+        const { sendLowQualityEmail } = await import('@/lib/email/classification-emails');
 
         updateData['status.status'] = 'done';
         updateData['status.sent_at'] = now;
 
-        // Send generic email using static HTML template
         try {
           const config = await getConfiguration();
-          if (config.email.enabled) {
-            const template = config.emailTemplates.lowQuality;
-            const testModeEmail = config.email.testMode ? config.email.testEmail : null;
-            const firstName = extractFirstName(lead.submission.leadName);
+          const testModeEmail = config.email.testMode ? config.email.testEmail : null;
+          const result = await sendLowQualityEmail({ lead, config, testModeEmail });
 
-            // Fill in {firstName} placeholder
-            let emailBody = template.body.replace(/{firstName}/g, firstName);
-
-            // Add default case study if configured
-            if (config.defaultCaseStudyId) {
-              const defaultCaseStudy = await getCaseStudyByIdServer(config.defaultCaseStudyId);
-              if (defaultCaseStudy) {
-                const matchedCaseStudy = caseStudyToMatchedCaseStudy(defaultCaseStudy);
-                emailBody += renderCaseStudiesHtml([matchedCaseStudy]);
-              }
-            }
-
-            await sendEmail(
-              {
-                to: lead.submission.email,
-                fromName: template.senderName,
-                fromEmail: template.senderEmail,
-                subject: template.subject,
-                html: emailBody,
-              },
-              testModeEmail
-            );
+          if (result.success) {
+            responseMessage = 'Generic email sent';
+          } else {
+            responseMessage = 'Classification saved, but email sending failed';
           }
-          responseMessage = 'Generic email sent';
         } catch (error) {
           console.error('[Classify] Error sending low-quality email:', error);
           responseMessage = 'Classification saved, but email sending failed';
@@ -210,17 +178,10 @@ export async function POST(
 
     console.log(`[Classify] Lead ${leadId} classified as ${classification}`);
 
-    return NextResponse.json({
-      success: true,
-      classification,
-      message: responseMessage,
-    });
+    return successResponse({ classification, message: responseMessage });
   } catch (error) {
     console.error('Error classifying lead:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to classify lead' },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to classify lead');
   }
 }
 

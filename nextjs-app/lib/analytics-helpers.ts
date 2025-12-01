@@ -1,6 +1,6 @@
 // Helper functions for analytics event logging
 
-import { adminDb } from "./firestore-admin";
+import { adminDb } from "./db";
 import type { AnalyticsEvent, AnalyticsEventType, Lead, Classification } from "./types";
 import { getCurrentClassification, getTerminalState } from "./types";
 
@@ -326,7 +326,8 @@ export function getClassificationBreakdown(leads: Lead[]): Record<Classification
     'support': 0,
     'duplicate': 0,
     'customer-reroute': 0,
-    'internal-reroute': 0,
+    'support-reroute': 0,
+    'sales-reroute': 0,
   };
 
   leads.forEach(lead => {
@@ -353,7 +354,8 @@ export function getConfidenceByClassification(leads: Lead[]): Array<{
     'support': [],
     'duplicate': [],
     'customer-reroute': [],
-    'internal-reroute': [],
+    'support-reroute': [],
+    'sales-reroute': [],
   };
 
   leads.forEach(lead => {

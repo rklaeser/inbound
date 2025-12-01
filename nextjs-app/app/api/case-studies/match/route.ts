@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findRelevantCaseStudiesVectorWithReason } from '@/lib/case-study-vector-matcher';
+import { findRelevantCaseStudiesVectorWithReason } from '@/lib/case-studies';
 
 /**
  * POST /api/case-studies/match

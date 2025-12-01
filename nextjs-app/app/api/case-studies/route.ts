@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllCaseStudies, createCaseStudy, validateCaseStudy } from '@/lib/firebase-case-studies';
-import type { CaseStudy } from '@/lib/case-studies';
+import {
+  getAllCaseStudies,
+  createCaseStudy,
+  validateCaseStudy,
+  type CaseStudy,
+} from '@/lib/case-studies';
 
 /**
  * GET /api/case-studies

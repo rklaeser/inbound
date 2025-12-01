@@ -1,6 +1,6 @@
 import AllLeads from '@/components/dashboard/AllLeads';
 import LeadsPageClient from '@/components/dashboard/LeadsPageClient';
-import { getAllLeadsServer } from '@/lib/firestore-server';
+import { getAllLeadsServer } from '@/lib/db';
 
 // Cache for 30 seconds - balance between freshness and performance
 export const revalidate = 30;

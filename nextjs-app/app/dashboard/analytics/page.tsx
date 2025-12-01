@@ -40,12 +40,17 @@ interface AnalyticsData {
   sentGeneric: number;
   forwardedSupport: number;
   forwardedAccountTeam: number;
-  dead: number;
+  customerReroutes: number;
+  supportReroutes: number;
+  salesReroutes: number;
   classificationBreakdown: {
     'high-quality': number;
     'low-quality': number;
     support: number;
     duplicate: number;
+    'customer-reroute': number;
+    'support-reroute': number;
+    'sales-reroute': number;
   };
   autoSendRate: number;
   humanOverrideRate: number;
@@ -238,6 +243,33 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      {/* Reroutes */}
+      {(analytics.customerReroutes > 0 || analytics.supportReroutes > 0 || analytics.salesReroutes > 0) && (
+        <div>
+          <h2 className="text-lg font-medium text-[#fafafa] mb-4">Reroutes</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <StatCard
+              label="Customer Reroutes"
+              value={analytics.customerReroutes}
+              subtext="Customer disputed classification"
+              variant={analytics.customerReroutes > 0 ? 'warning' : 'default'}
+            />
+            <StatCard
+              label="Support Reroutes"
+              value={analytics.supportReroutes}
+              subtext="Support team sent back"
+              variant={analytics.supportReroutes > 0 ? 'warning' : 'default'}
+            />
+            <StatCard
+              label="Sales Reroutes"
+              value={analytics.salesReroutes}
+              subtext="Sales team sent back"
+              variant={analytics.salesReroutes > 0 ? 'warning' : 'default'}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Human vs AI Comparison */}
       {analytics.humanAIComparison && analytics.humanAIComparison.totalComparisons > 0 && (
         <div>
@@ -383,7 +415,7 @@ export default function AnalyticsPage() {
               label="Low Quality"
               count={analytics.classificationBreakdown['low-quality']}
               total={analytics.totalLeads}
-              color="bg-amber-500"
+              color="bg-gray-500"
             />
             <ClassificationBar
               label="Support"
@@ -396,6 +428,24 @@ export default function AnalyticsPage() {
               count={analytics.classificationBreakdown.duplicate}
               total={analytics.totalLeads}
               color="bg-purple-500"
+            />
+            <ClassificationBar
+              label="Customer Reroute"
+              count={analytics.classificationBreakdown['customer-reroute']}
+              total={analytics.totalLeads}
+              color="bg-amber-500"
+            />
+            <ClassificationBar
+              label="Support Reroute"
+              count={analytics.classificationBreakdown['support-reroute']}
+              total={analytics.totalLeads}
+              color="bg-cyan-500"
+            />
+            <ClassificationBar
+              label="Sales Reroute"
+              count={analytics.classificationBreakdown['sales-reroute']}
+              total={analytics.totalLeads}
+              color="bg-pink-500"
             />
           </CardContent>
         </Card>
@@ -596,9 +646,12 @@ function AgreementBar({
 function getClassificationStyle(classification: string): string {
   const styles: Record<string, string> = {
     'high-quality': 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-    'low-quality': 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+    'low-quality': 'bg-gray-500/10 text-gray-400 border border-gray-500/20',
     'support': 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
     'duplicate': 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
+    'customer-reroute': 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+    'support-reroute': 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20',
+    'sales-reroute': 'bg-pink-500/10 text-pink-400 border border-pink-500/20',
   };
   return styles[classification] || 'bg-[#1a1a1a] text-[#666] border border-[rgba(255,255,255,0.1)]';
 }

@@ -3,7 +3,7 @@
 // WARNING: This is a destructive operation!
 
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
+import { adminDb } from "@/lib/db";
 
 export async function DELETE() {
   try {

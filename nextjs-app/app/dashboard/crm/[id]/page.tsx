@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getCustomerById } from '@/lib/salesforce-mock';
+import { getCustomerById } from '@/lib/db/mock-crm';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 

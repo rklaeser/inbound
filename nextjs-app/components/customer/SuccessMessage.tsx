@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firestore';
+import { db } from '@/lib/db/client';
 import type { MatchedCaseStudy } from '@/lib/types';
 
 interface SentEmail {
@@ -153,7 +153,7 @@ export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessag
           <div className="flex items-center justify-between gap-4">
             {/* Book Meeting Button - Left */}
             <a
-              href={`/sent-emails/${leadId}`}
+              href={`/book-meeting/${leadId}`}
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium transition-opacity hover:opacity-90"
               style={{
                 background: 'var(--foreground)',

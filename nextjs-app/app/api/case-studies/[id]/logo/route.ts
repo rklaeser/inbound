@@ -2,8 +2,7 @@
 // DELETE /api/case-studies/[id]/logo - Remove the logo for a case study
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firestore-admin';
-import { uploadCaseStudyLogo, deleteCaseStudyLogo } from '@/lib/firebase-storage';
+import { adminDb, uploadCaseStudyLogo, deleteCaseStudyLogo } from '@/lib/db';
 
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
 const ALLOWED_MIME_TYPES = ['image/svg+xml', 'image/png', 'image/jpeg'];

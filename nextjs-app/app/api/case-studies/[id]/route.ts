@@ -4,7 +4,7 @@ import {
   updateCaseStudy,
   deleteCaseStudy,
   validateCaseStudy,
-} from '@/lib/firebase-case-studies';
+} from '@/lib/case-studies';
 
 /**
  * GET /api/case-studies/[id]

@@ -2,7 +2,7 @@
 // Record a meeting booking for a lead
 
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firestore-admin";
+import { adminDb } from "@/lib/db";
 import { logMeetingBookedEvent } from "@/lib/analytics-helpers";
 import type { Lead } from "@/lib/types";
 import { Timestamp } from "firebase-admin/firestore";

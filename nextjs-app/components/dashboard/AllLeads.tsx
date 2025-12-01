@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firestore';
+import { db } from '@/lib/db/client';
 import {
   Table,
   TableBody,
@@ -70,31 +70,24 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
     });
   };
 
-  const statusDisplayText = useMemo(() => {
-    return `Status ${selectedStatuses.size}/${STATUS_FILTER_OPTIONS.length}`;
-  }, [selectedStatuses]);
-
-  const typeDisplayText = useMemo(() => {
-    return `Type ${selectedTypes.size}/${TYPE_FILTER_OPTIONS.length}`;
-  }, [selectedTypes]);
+  const statusDisplayText = `Status ${selectedStatuses.size}/${STATUS_FILTER_OPTIONS.length}`;
+  const typeDisplayText = `Type ${selectedTypes.size}/${TYPE_FILTER_OPTIONS.length}`;
 
   // Filter leads based on selected filters
-  const filteredLeads = useMemo(() => {
-    return leads.filter(lead => {
-      // Status filter - check lead.status.status
-      if (!selectedStatuses.has(lead.status.status)) {
-        return false;
-      }
+  const filteredLeads = leads.filter(lead => {
+    // Status filter - check lead.status.status
+    if (!selectedStatuses.has(lead.status.status)) {
+      return false;
+    }
 
-      // Type filter - check classification
-      const classification = getCurrentClassification(lead) || 'unclassified';
-      if (!selectedTypes.has(classification)) {
-        return false;
-      }
+    // Type filter - check classification
+    const classification = getCurrentClassification(lead) || 'unclassified';
+    if (!selectedTypes.has(classification)) {
+      return false;
+    }
 
-      return true;
-    });
-  }, [leads, selectedStatuses, selectedTypes]);
+    return true;
+  });
 
   useEffect(() => {
     // Set up real-time listener AFTER initial render
@@ -304,9 +297,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 // Check if this is a test lead and calculate pass/fail
                 const isTestLead = lead.metadata?.isTestLead;
                 const currentClassification = getCurrentClassification(lead);
-                const testPassed = isTestLead && lead.metadata?.expectedClassifications.includes(
-                  currentClassification as Classification
-                );
+                const testPassed = isTestLead && lead.metadata?.expectedClassification === currentClassification;
 
                 // Check if lead is completed (terminal state)
                 const isCompleted = lead.status.status === 'done';
@@ -332,7 +323,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                           )}
                           <div className="flex flex-col gap-0.5 text-xs">
                             <div className="text-muted-foreground">
-                              Expected: <span className="text-foreground">{lead.metadata?.expectedClassifications.join(' or ')}</span>
+                              Expected: <span className="text-foreground">{lead.metadata?.expectedClassification}</span>
                             </div>
                             <div className="text-muted-foreground">
                               Got: <span className={testPassed ? "text-green-600" : "text-red-600"}>{currentClassification || 'none'}</span>

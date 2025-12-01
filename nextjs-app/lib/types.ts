@@ -1,5 +1,5 @@
 import { Timestamp } from "firebase/firestore";
-import { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } from "./prompts";
+import { type Industry } from "./case-studies";
 
 // =============================================================================
 // ENUMS
@@ -12,7 +12,8 @@ export type Classification =
   | 'support'           // Existing customer needing help, forwarded to support
   | 'duplicate'         // Already a customer in CRM, forwarded to account team
   | 'customer-reroute'  // Customer disputed support/duplicate classification via escape hatch
-  | 'internal-reroute'; // Internal team (support/account) disputed classification
+  | 'support-reroute'   // Support team disputed classification, needs SDR review
+  | 'sales-reroute';    // Sales/account team disputed classification, needs SDR review
 
 // Status types - where is this lead in the workflow?
 // classify: waiting for human to classify (AI classification rate check failed)
@@ -27,7 +28,8 @@ export type TerminalState =
   | 'forwarded_support'       // support lead, forwarded to support team
   | 'forwarded_account_team'  // duplicate lead, forwarded to account team
   | 'customer_reroute'        // customer disputed classification, needs SDR review
-  | 'internal_reroute';       // internal team disputed classification, needs SDR review
+  | 'support_reroute'         // support team disputed classification, needs SDR review
+  | 'sales_reroute';          // sales team disputed classification, needs SDR review
 
 // =============================================================================
 // CLASSIFICATION CONFIG (single source of truth for display)
@@ -125,10 +127,25 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
       color: '#f59e0b',
     },
   },
-  'internal-reroute': {
-    key: 'internal-reroute',
-    label: 'Internal Reroute',
-    description: 'Internal team disputed classification',
+  'support-reroute': {
+    key: 'support-reroute',
+    label: 'Support Reroute',
+    description: 'Support team disputed classification',
+    colors: {
+      text: '#06b6d4',
+      background: 'rgba(6, 182, 212, 0.1)',
+      border: 'rgba(6, 182, 212, 0.2)',
+    },
+    action: {
+      short: 'Needs Review',
+      long: 'Review Support Reroute',
+      color: '#06b6d4',
+    },
+  },
+  'sales-reroute': {
+    key: 'sales-reroute',
+    label: 'Sales Reroute',
+    description: 'Sales team disputed classification',
     colors: {
       text: '#ec4899',
       background: 'rgba(236, 72, 153, 0.1)',
@@ -136,30 +153,20 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
     },
     action: {
       short: 'Needs Review',
-      long: 'Review Internal Reroute',
+      long: 'Review Sales Reroute',
       color: '#ec4899',
     },
   },
 };
 
 // Classification helper functions
-export function getClassificationConfig(c: Classification): ClassificationConfig {
-  return CLASSIFICATIONS[c];
-}
-
 export function getClassificationLabel(c: Classification): string {
   return CLASSIFICATIONS[c].label;
-}
-
-export function getClassificationColors(c: Classification) {
-  return CLASSIFICATIONS[c].colors;
 }
 
 export function getClassificationAction(c: Classification) {
   return CLASSIFICATIONS[c].action;
 }
-
-export const ALL_CLASSIFICATIONS = Object.values(CLASSIFICATIONS);
 
 // =============================================================================
 // TERMINAL STATE CONFIG (single source of truth for display)
@@ -221,9 +228,18 @@ export const TERMINAL_STATES: Record<TerminalState, TerminalStateConfig> = {
       border: 'rgba(245, 158, 11, 0.2)',
     },
   },
-  internal_reroute: {
-    key: 'internal_reroute',
-    label: 'Internal Reroute',
+  support_reroute: {
+    key: 'support_reroute',
+    label: 'Support Reroute',
+    colors: {
+      text: '#06b6d4',
+      background: 'rgba(6, 182, 212, 0.1)',
+      border: 'rgba(6, 182, 212, 0.2)',
+    },
+  },
+  sales_reroute: {
+    key: 'sales_reroute',
+    label: 'Sales Reroute',
     colors: {
       text: '#ec4899',
       background: 'rgba(236, 72, 153, 0.1)',
@@ -232,19 +248,6 @@ export const TERMINAL_STATES: Record<TerminalState, TerminalStateConfig> = {
   },
 };
 
-// Terminal state helper functions
-export function getTerminalStateConfig(s: TerminalState): TerminalStateConfig {
-  return TERMINAL_STATES[s];
-}
-
-export function getTerminalStateLabel(s: TerminalState): string {
-  return TERMINAL_STATES[s].label;
-}
-
-export function getTerminalStateColors(s: TerminalState) {
-  return TERMINAL_STATES[s].colors;
-}
-
 // =============================================================================
 // MATCHED CASE STUDIES (for customer success page)
 // =============================================================================
@@ -252,7 +255,7 @@ export function getTerminalStateColors(s: TerminalState) {
 export interface MatchedCaseStudy {
   caseStudyId: string;
   company: string;
-  industry: string;
+  industry: Industry;  // Use Industry type instead of string for type safety
   url: string;
   matchType: 'industry' | 'problem' | 'mentioned';
   matchReason: string;
@@ -343,7 +346,7 @@ export interface Lead {
   metadata?: {
     isTestLead: boolean;
     testCase: string;
-    expectedClassifications: readonly Classification[];
+    expectedClassification: Classification;
   };
 
   // Matched case studies from workflow research (optional - populated after research step)
@@ -379,7 +382,8 @@ export function getTerminalState(lead: Lead): TerminalState | null {
     case 'support': return 'forwarded_support';
     case 'duplicate': return 'forwarded_account_team';
     case 'customer-reroute': return 'customer_reroute';
-    case 'internal-reroute': return 'internal_reroute';
+    case 'support-reroute': return 'support_reroute';
+    case 'sales-reroute': return 'sales_reroute';
   }
 }
 
@@ -393,46 +397,34 @@ export function wasReclassified(lead: Lead): boolean {
   return lead.classifications.length > 1;
 }
 
-// Check if lead needs human review
-export function needsReview(lead: Lead): boolean {
-  return lead.status.status === 'review';
-}
-
 // =============================================================================
 // FILTER OPTIONS (for AllLeads UI filtering)
 // =============================================================================
 
-export interface FilterOption {
-  key: string;
-  label: string;
-  color: string;
-}
-
 // Status filter options (matches lead.status.status)
-export const STATUS_FILTER_OPTIONS: FilterOption[] = [
+export const STATUS_FILTER_OPTIONS = [
   { key: 'classify', label: 'Classify', color: '#eab308' },  // yellow-500
   { key: 'review', label: 'Review', color: '#f97316' },      // orange-500
   { key: 'done', label: 'Done', color: '#22c55e' },          // green-500
 ];
 
 // Type filter options (matches classification)
-export const TYPE_FILTER_OPTIONS: FilterOption[] = [
+export const TYPE_FILTER_OPTIONS = [
   { key: 'high-quality', label: 'High Quality', color: '#22c55e' },        // green-500
   { key: 'low-quality', label: 'Low Quality', color: '#a1a1a1' },          // gray
   { key: 'support', label: 'Support', color: '#3b82f6' },                  // blue-500
   { key: 'duplicate', label: 'Duplicate', color: '#a855f7' },              // purple-500
   { key: 'customer-reroute', label: 'Customer Reroute', color: '#f59e0b' }, // amber-500
-  { key: 'internal-reroute', label: 'Internal Reroute', color: '#ec4899' }, // pink-500
+  { key: 'support-reroute', label: 'Support Reroute', color: '#06b6d4' },  // cyan-500
+  { key: 'sales-reroute', label: 'Sales Reroute', color: '#ec4899' },      // pink-500
   { key: 'unclassified', label: 'Unclassified', color: '#f97316' },        // orange-500
 ];
 
-// Legacy helper for compatibility (use getTerminalStateLabel instead)
 export function getTerminalStateDisplay(state: TerminalState): { label: string; color: string } {
   const config = TERMINAL_STATES[state];
   return { label: config.label, color: config.colors.text };
 }
 
-// Legacy helper for compatibility (use getClassificationLabel instead)
 export function getClassificationDisplay(classification: Classification): { label: string; color: string } {
   const config = CLASSIFICATIONS[classification];
   return { label: config.label, color: config.colors.text };
@@ -530,101 +522,8 @@ export interface Configuration {
   updated_by: string;
 }
 
-// Default configuration values
-export const DEFAULT_CONFIGURATION: Omit<Configuration, 'updated_at' | 'updated_by'> = {
-  thresholds: {
-    highQuality: 0.98,
-    lowQuality: 0.51,
-    support: 0.9,
-  },
-  allowHighQualityAutoSend: false,  // Require human review for meeting offers by default
-  sdr: {
-    name: 'Ryan',
-    lastName: 'Hemelt',
-    email: 'ryan@vercel.com',
-    title: 'Development Representative',
-    avatar: 'https://vercel.com/api/www/avatar?u=rauchg&s=64',
-  },
-  supportTeam: {
-    name: 'Support Team',
-    email: 'support@vercel.com',
-  },
-  // All email templates are stored as HTML
-  emailTemplates: {
-    highQuality: {
-      subject: 'Hi from Vercel',
-      greeting: '<p>Hi {firstName},</p>',
-      callToAction: '<p>Let\'s schedule a quick 15 minute call to get started. <a href="{baseUrl}/sent-emails/{leadId}">Book a Meeting</a></p>',
-      signOff: '<p>Best,</p>',
-    },
-    lowQuality: {
-      subject: 'Thanks for your interest in Vercel',
-      body: `<p>Hi {firstName},</p>
-<p>Thanks for reaching out! We appreciate your interest in Vercel.</p>
-<p>Check out <a href="https://vercel.com/customers">vercel.com/customers</a> to see how companies are using our platform.</p>
-<p>Best,</p>
-<p>Vercel Sales</p>`,
-      senderName: 'Vercel Sales',
-      senderEmail: 'sales@vercel.com',
-    },
-    support: {
-      subject: 'Looking for support?',
-      greeting: '<p>Hi {firstName},</p>',
-      body: `<p>Thanks for reaching out to Vercel!</p>
-<p>It looks like you're looking for support. Our support team has been notified of your request and will reach out if they can help.</p>
-<p>Best,</p>
-<p>Vercel Sales</p>
-<hr style="border: none; border-top: 1px solid #333; margin: 16px 0;">
-<p style="color: #666;"><strong>Not looking for support?</strong><br>
-<a href="{baseUrl}/reroute/{leadId}">Tell us more</a></p>`,
-    },
-    duplicate: {
-      subject: 'Looking for Account Support?',
-      greeting: '<p>Hi {firstName},</p>',
-      body: `<p>Thanks for reaching out to Vercel!</p>
-<p>Our records show {company} already has an assigned account team at Vercel. They'll be reaching out to you.</p>
-<p>Did we get that wrong? <a href="{baseUrl}/reroute/{leadId}">Give us more info</a></p>
-<p>Best,</p>
-<p>Vercel Sales</p>`,
-    },
-    supportInternal: {
-      subject: 'Support Request from {firstName} at {company}',
-      body: `<p>A new support request has been received.</p>
-<p><strong>From:</strong> {firstName} ({email})<br><strong>Company:</strong> {company}</p>
-<p><strong>Message:</strong><br>{message}</p>
-<p>Please respond to this request.</p>
-<hr style="border: none; border-top: 1px solid #333; margin: 16px 0;">
-<p style="color: #666;"><strong>Not a support request?</strong><br>
-<a href="{baseUrl}/send-back/{leadId}?team=support">Send it back</a> · <a href="{baseUrl}/send-back/{leadId}?team=support&withNote=true">Send it back with a note</a> · <a href="{baseUrl}/self-service/{leadId}">Mark as self-service</a></p>`,
-    },
-    duplicateInternal: {
-      subject: 'Existing Customer Inquiry: {firstName} at {company}',
-      body: `<p>An existing customer has reached out.</p>
-<p><strong>From:</strong> {firstName} ({email})<br><strong>Company:</strong> {company}</p>
-<p><strong>Message:</strong><br>{message}</p>
-<p>CRM Info: See lead details for account context.</p>
-<hr style="border: none; border-top: 1px solid #333; margin: 16px 0;">
-<p style="color: #666;"><strong>Not a duplicate?</strong><br>
-<a href="{baseUrl}/send-back/{leadId}?team=account">Send it back</a> · <a href="{baseUrl}/send-back/{leadId}?team=account&withNote=true">Send it back with a note</a></p>`,
-    },
-  },
-  prompts: {
-    classification: CLASSIFICATION_PROMPT,
-    emailHighQuality: EMAIL_GENERATION_PROMPT,
-  },
-  rollout: {
-    percentage: 1,
-  },
-  email: {
-    enabled: true,
-    testMode: true,
-    testEmail: 'reed.klaeser@gmail.com',
-  },
-  defaultCaseStudyId: 'notion',  // Notion is the default fallback case study
-  experimental: {
-    caseStudies: false,  // Case studies disabled by default
-  },
-};
+// Default configuration values - re-exported from settings-defaults
+export { DEFAULT_CONFIGURATION } from './settings-defaults';
 
 // =============================================================================
 // ANALYTICS
@@ -647,29 +546,6 @@ export interface AnalyticsEvent {
   event_type: AnalyticsEventType;
   data: Record<string, unknown>;
   recorded_at: Date | Timestamp;
-}
-
-export interface ConfigurationMetrics {
-  configuration_id: string;
-  total_leads: number;
-  emails_generated: number;
-  emails_sent: number;
-  emails_rejected: number;
-  approval_rate: number;
-  edit_rate: number;
-  avg_response_time_ms: number;
-  avg_time_to_booking_ms: number | null;
-  rerouted_count: number;
-  classification_breakdown: {
-    'high-quality': number;
-    'low-quality': number;
-    support: number;
-    duplicate: number;
-    'customer-reroute': number;
-  };
-  first_lead_at: Date | Timestamp | null;
-  last_lead_at: Date | Timestamp | null;
-  deployment_version?: number;
 }
 
 // =============================================================================

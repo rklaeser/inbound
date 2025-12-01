@@ -1,24 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import type { CaseStudy, Industry } from '@/lib/case-studies';
-
-const INDUSTRIES: Industry[] = [
-  'Software',
-  'AI',
-  'Retail',
-  'Business Services',
-  'Finance & Insurance',
-  'Media',
-  'Healthcare',
-  'Energy & Utilities',
-];
+import { useState } from 'react';
+import { INDUSTRIES, type CaseStudy, type Industry } from '@/lib/case-studies/types';
 
 interface CaseStudiesProps {
   initialCaseStudies: CaseStudy[];
+  initialDefaultCaseStudyId: string | null;
 }
 
-export default function CaseStudies({ initialCaseStudies }: CaseStudiesProps) {
+export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStudyId }: CaseStudiesProps) {
   const [caseStudies, setCaseStudies] = useState<CaseStudy[]>(initialCaseStudies);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +27,7 @@ export default function CaseStudies({ initialCaseStudies }: CaseStudiesProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Default case study state
-  const [defaultCaseStudyId, setDefaultCaseStudyId] = useState<string | null>(null);
+  const [defaultCaseStudyId, setDefaultCaseStudyId] = useState<string | null>(initialDefaultCaseStudyId);
   const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
 
   // Logo state
@@ -51,44 +41,18 @@ export default function CaseStudies({ initialCaseStudies }: CaseStudiesProps) {
   const [savingFeaturedTextId, setSavingFeaturedTextId] = useState<string | null>(null);
 
   // Filter case studies by industry and sort with default at top
-  const filteredCaseStudies = useMemo(() => {
-    let filtered = selectedIndustry === 'all'
-      ? caseStudies
-      : caseStudies.filter(cs => cs.industry === selectedIndustry);
-
-    // Sort with default case study at top
-    if (defaultCaseStudyId) {
-      filtered = [...filtered].sort((a, b) => {
-        if (a.id === defaultCaseStudyId) return -1;
-        if (b.id === defaultCaseStudyId) return 1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [caseStudies, selectedIndustry, defaultCaseStudyId]);
+  const filteredCaseStudies = (selectedIndustry === 'all'
+    ? caseStudies
+    : caseStudies.filter(cs => cs.industry === selectedIndustry)
+  ).toSorted((a, b) => {
+    if (a.id === defaultCaseStudyId) return -1;
+    if (b.id === defaultCaseStudyId) return 1;
+    return 0;
+  });
 
   // Get unique industries from current case studies
-  const availableIndustries = useMemo(() => {
-    const industries = new Set(caseStudies.map(cs => cs.industry));
-    return INDUSTRIES.filter(ind => industries.has(ind));
-  }, [caseStudies]);
-
-  // Fetch default case study ID on mount
-  useEffect(() => {
-    async function fetchSettings() {
-      try {
-        const response = await fetch('/api/settings');
-        const data = await response.json();
-        if (data.success && data.configuration) {
-          setDefaultCaseStudyId(data.configuration.defaultCaseStudyId || null);
-        }
-      } catch (err) {
-        console.error('Failed to fetch settings:', err);
-      }
-    }
-    fetchSettings();
-  }, []);
+  const industriesInUse = new Set(caseStudies.map(cs => cs.industry));
+  const availableIndustries = INDUSTRIES.filter(ind => industriesInUse.has(ind));
 
   async function handleSetDefault(id: string) {
     setSettingDefaultId(id);

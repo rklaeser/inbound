@@ -1,6 +1,6 @@
 // Helper functions for configuration operations
 
-import { adminDb } from "./firestore-admin";
+import { adminDb } from "./db";
 import type { Configuration, Classification } from "./types";
 import { DEFAULT_CONFIGURATION } from "./types";
 
@@ -77,7 +77,7 @@ export async function updateConfiguration(
  * Initialize default configuration (for new setups)
  */
 export async function initializeConfiguration(): Promise<void> {
-  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } = await import('./prompts');
+  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } = await import('./settings-defaults');
 
   const defaultConfig: Configuration = {
     ...DEFAULT_CONFIGURATION,
@@ -154,8 +154,11 @@ export function getThresholdForClassification(
     case 'customer-reroute':
       // Customer reroutes don't have thresholds - they're manually triggered
       return 0;
-    case 'internal-reroute':
-      // Internal reroutes don't have thresholds - they're manually triggered by internal teams
+    case 'support-reroute':
+      // Support reroutes don't have thresholds - they're manually triggered by support team
+      return 0;
+    case 'sales-reroute':
+      // Sales reroutes don't have thresholds - they're manually triggered by sales team
       return 0;
   }
 }
