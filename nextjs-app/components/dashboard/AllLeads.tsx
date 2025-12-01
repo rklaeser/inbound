@@ -115,10 +115,10 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
             }
           });
 
-          // Convert back to array and sort: review leads first, then done leads, each by received_at desc
+          // Convert back to array and sort: processing first, then classify, review, done
           return Array.from(leadMap.values()).sort((a, b) => {
-            // First sort by status: 'classify' → 'review' → 'done'
-            const statusOrder: Record<string, number> = { classify: 0, review: 1, done: 2 };
+            // First sort by status: 'processing' → 'classify' → 'review' → 'done'
+            const statusOrder: Record<string, number> = { processing: 0, classify: 1, review: 2, done: 3 };
             const aStatusOrder = statusOrder[a.status.status] ?? 3;
             const bStatusOrder = statusOrder[b.status.status] ?? 3;
             if (aStatusOrder !== bStatusOrder) {
@@ -302,15 +302,20 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 // Check if lead is completed (terminal state)
                 const isCompleted = lead.status.status === 'done';
 
-                // Completed rows are dimmed
-                const rowClassName = `cursor-pointer hover:bg-[#000000] ${isCompleted ? 'opacity-50' : ''}`;
+                // Check if lead is still processing (workflow in progress)
+                const isProcessing = lead.status.status === 'processing';
+
+                // Processing rows have no click behavior, completed rows are dimmed
+                const rowClassName = isProcessing
+                  ? 'cursor-not-allowed opacity-70'
+                  : `cursor-pointer hover:bg-[#000000] ${isCompleted ? 'opacity-50' : ''}`;
 
                 return (
                   <TableRow
                     key={lead.id}
                     className={rowClassName}
                     style={{ borderColor: 'rgba(255,255,255,0.06)' }}
-                    onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                    onClick={() => !isProcessing && router.push(`/dashboard/leads/${lead.id}`)}
                   >
                     {/* Test Result Indicator (Dev Mode Only) */}
                     {isDeveloperMode && isTestLead && (

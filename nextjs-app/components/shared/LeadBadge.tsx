@@ -54,6 +54,17 @@ function getBadgeForLead(lead: Lead): BadgeInfo {
     };
   }
 
+  // Workflow is running (lead just submitted)
+  if (status.status === 'processing') {
+    return {
+      label: 'Processing',
+      bg: 'rgba(139,92,246,0.1)',    // violet
+      text: '#8b5cf6',
+      border: 'rgba(139,92,246,0.2)',
+      icon: <Loader2 className="h-3 w-3 animate-spin" />
+    };
+  }
+
   // Waiting for human classification (AI classification rate check failed)
   if (status.status === 'classify') {
     return {
@@ -65,13 +76,13 @@ function getBadgeForLead(lead: Lead): BadgeInfo {
     };
   }
 
-  // In review with no classification yet → Processing
+  // In review with no classification yet (shouldn't happen with new flow, but keep for safety)
   if (status.status === 'review' && classifications.length === 0) {
     return {
       label: 'Processing',
-      bg: 'rgba(245,158,11,0.1)',
-      text: '#f59e0b',
-      border: 'rgba(245,158,11,0.2)',
+      bg: 'rgba(139,92,246,0.1)',
+      text: '#8b5cf6',
+      border: 'rgba(139,92,246,0.2)',
       icon: <Loader2 className="h-3 w-3 animate-spin" />
     };
   }

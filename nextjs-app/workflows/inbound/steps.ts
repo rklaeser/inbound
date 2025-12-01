@@ -3,7 +3,7 @@ import {
   qualifyLead,
   generateEmailForLead,
 } from '@/lib/workflow-services';
-import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration, MatchedCaseStudy } from '@/lib/types';
+import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration, MatchedCaseStudy, BotResearch } from '@/lib/types';
 import { getThresholdForClassification, shouldAutoSend } from '@/lib/configuration-helpers';
 import { findRelevantCaseStudiesVectorWithReason, type Industry } from '@/lib/case-studies';
 import { caseStudyToMatchedCaseStudy } from '@/lib/email';
@@ -260,4 +260,129 @@ export const stepDetermineStatus = async (
     sent_at,
     sent_by,
   };
+};
+
+/**
+ * Result type for persistence (matches WorkflowResult from index.ts)
+ */
+interface PersistResultPayload {
+  bot_research: BotResearch;
+  emailBody: string | null;
+  needs_review: boolean;
+  applied_threshold: number;
+  status: LeadStatus;
+  sent_at: Date | null;
+  sent_by: string | null;
+  matched_case_studies: MatchedCaseStudy[];
+}
+
+/**
+ * Email template config for assembling emails
+ */
+interface EmailTemplateConfig {
+  greeting: string;
+  callToAction: string;
+  signOff: string;
+  senderName: string;
+  senderLastName: string;
+  senderEmail: string;
+  senderTitle: string;
+}
+
+/**
+ * Persist results step - writes directly to Firestore using firebase-admin
+ */
+export const stepPersistResults = async (
+  leadId: string,
+  result: PersistResultPayload,
+  useAIClassification: boolean,
+  leadName: string,
+  emailTemplateConfig: EmailTemplateConfig
+): Promise<void> => {
+  'use step';
+
+  console.log(`[Workflow] Persisting results for lead ${leadId}`);
+
+  // Import firebase-admin and email helpers
+  const { adminDb } = await import('@/lib/db');
+  const { assembleEmail, extractFirstName } = await import('@/lib/email');
+
+  // Assemble full email from body if workflow generated one
+  let email = null;
+  if (result.emailBody) {
+    const now = new Date();
+    const firstName = extractFirstName(leadName);
+    const fullEmailHtml = assembleEmail(
+      result.emailBody,
+      emailTemplateConfig,
+      firstName,
+      leadId
+    );
+    email = {
+      text: fullEmailHtml,
+      createdAt: now,
+      editedAt: now,
+    };
+    console.log(`[Workflow] Assembled full email for ${firstName}`);
+  }
+
+  // Build bot rollout info
+  const bot_rollout = {
+    rollOut: result.applied_threshold,
+    useBot: useAIClassification && result.status === 'done',
+  };
+
+  try {
+    if (useAIClassification) {
+      // AI is authoritative - apply bot classification and status
+      const botClassification = {
+        author: 'bot' as const,
+        classification: result.bot_research.classification,
+        timestamp: result.bot_research.timestamp,
+        needs_review: result.needs_review,
+        applied_threshold: result.applied_threshold,
+      };
+
+      // Update lead with full workflow results
+      await adminDb.collection("leads").doc(leadId).update({
+        bot_research: result.bot_research,
+        email,
+        bot_rollout,
+        'status.status': result.status,
+        'status.sent_at': result.sent_at,
+        'status.sent_by': result.sent_by,
+        classifications: [botClassification],
+        matched_case_studies: result.matched_case_studies,
+      });
+
+      console.log(`[Workflow] AI classification applied: ${result.bot_research.classification}`);
+    } else {
+      // Human will classify - store AI results for comparison only
+      await adminDb.collection("leads").doc(leadId).update({
+        bot_research: result.bot_research,
+        email,
+        bot_rollout,
+        'status.status': 'classify',
+        matched_case_studies: result.matched_case_studies,
+      });
+
+      console.log(`[Workflow] AI classification stored for comparison: ${result.bot_research.classification} (${(result.bot_research.confidence * 100).toFixed(0)}% confidence)`);
+    }
+
+    console.log(`[Workflow] Results persisted successfully for lead ${leadId}`);
+  } catch (error) {
+    console.error(`[Workflow] Failed to persist results:`, error);
+
+    // Try to move lead to classify for human handling
+    try {
+      await adminDb.collection("leads").doc(leadId).update({
+        'status.status': 'classify',
+      });
+      console.log(`[Workflow] Lead ${leadId} moved to 'classify' for human handling`);
+    } catch (updateError) {
+      console.error(`[Workflow] Failed to update lead status after error:`, updateError);
+    }
+
+    throw error;
+  }
 };

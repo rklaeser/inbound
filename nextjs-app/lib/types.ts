@@ -16,10 +16,11 @@ export type Classification =
   | 'sales-reroute';    // Sales/account team disputed classification, needs SDR review
 
 // Status types - where is this lead in the workflow?
+// processing: workflow is running (lead just submitted, AI processing in progress)
 // classify: waiting for human to classify (AI classification rate check failed)
 // review: AI classified, waiting for human to review/approve
 // done: action taken (email sent or forwarded)
-export type LeadStatus = 'classify' | 'review' | 'done';
+export type LeadStatus = 'processing' | 'classify' | 'review' | 'done';
 
 // Terminal state - derived from status + classification when status = 'done'
 export type TerminalState =
@@ -403,6 +404,7 @@ export function wasReclassified(lead: Lead): boolean {
 
 // Status filter options (matches lead.status.status)
 export const STATUS_FILTER_OPTIONS = [
+  { key: 'processing', label: 'Processing', color: '#8b5cf6' },  // violet-500
   { key: 'classify', label: 'Classify', color: '#eab308' },  // yellow-500
   { key: 'review', label: 'Review', color: '#f97316' },      // orange-500
   { key: 'done', label: 'Done', color: '#22c55e' },          // green-500

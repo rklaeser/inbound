@@ -6,12 +6,26 @@ import {
   stepGenerateEmail,
   stepDetermineStatus,
   stepMatchCaseStudies,
+  stepPersistResults,
   type ResearchResult
 } from './steps';
 
 /**
+ * Email template config needed for email assembly in workflow
+ */
+export interface EmailTemplateConfig {
+  greeting: string;
+  callToAction: string;
+  signOff: string;
+  senderName: string;
+  senderLastName: string;
+  senderEmail: string;
+  senderTitle: string;
+}
+
+/**
  * Input type for the workflow
- * All data that requires Firebase must be passed in (workflow runtime lacks setTimeout)
+ * All data that requires Firebase must be passed in (workflow runtime can't fetch config)
  */
 export interface WorkflowInput {
   lead: LeadFormData;
@@ -22,6 +36,10 @@ export interface WorkflowInput {
     allowHighQualityAutoSend: boolean;
     experimentalCaseStudies: boolean; // Whether case studies feature is enabled
   };
+  // Context for persisting results
+  leadId: string;
+  useAIClassification: boolean;  // Whether AI classification is authoritative
+  emailTemplateConfig: EmailTemplateConfig;  // For assembling emails in persist step
 }
 
 /**
@@ -71,7 +89,7 @@ export interface WorkflowResult {
 export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowResult> => {
   'use workflow';
 
-  const { lead: data, config } = input;
+  const { lead: data, config, leadId, useAIClassification, emailTemplateConfig } = input;
   console.log(`[Workflow] Starting inbound workflow for ${data.company}`);
 
   // Step 1: Research the lead
@@ -122,9 +140,7 @@ export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowRes
     config
   );
 
-  console.log(`[Workflow] Workflow completed: status=${status}, needs_review=${needs_review}`);
-
-  return {
+  const result: WorkflowResult = {
     bot_research,
     emailBody,
     needs_review,
@@ -134,4 +150,11 @@ export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowRes
     sent_by,
     matched_case_studies,
   };
+
+  // Step 5: Persist results to database using firebase-admin
+  await stepPersistResults(leadId, result, useAIClassification, data.name, emailTemplateConfig);
+
+  console.log(`[Workflow] Workflow completed: status=${status}, needs_review=${needs_review}`);
+
+  return result;
 };
