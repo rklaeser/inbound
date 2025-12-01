@@ -7,9 +7,8 @@ import {
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { LeadFormData, ClassificationResult, EmailGenerationResult } from './types';
-import { findRelevantCaseStudies } from './case-study-matcher';
-import { detectDuplicate } from './salesforce-mock';
-import { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT, GENERIC_EMAIL_PROMPT } from './prompts';
+import { findCaseStudiesByProblemFit, findCaseStudiesByIndustryFit } from './case-study-matcher';
+import { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } from './prompts';
 
 /**
  * Tools for Research Agent
@@ -54,9 +53,13 @@ const webSearch = tool({
         text: { maxCharacters: 500 }
       });
 
-      // Format results as text
+      // Format results as text with source URLs
       const formatted = result.results
-        .map((r: any) => `${r.title}: ${r.summary || r.text || ''}`)
+        .map((r: any) => {
+          const content = r.summary || r.text || '';
+          const source = r.url ? `\nSource: ${r.url}` : '';
+          return `${r.title}: ${content}${source}`;
+        })
         .join('\n\n');
 
       return formatted || 'No results found';
@@ -68,56 +71,54 @@ const webSearch = tool({
 });
 
 /**
- * Case study finder - retrieves relevant customer success stories
+ * Case study finder - retrieves relevant customer success stories organized by problem fit and industry fit
  */
 const findCaseStudies = tool({
-  description: 'Find relevant case studies and customer success stories that match the lead',
+  description: 'Find relevant case studies organized by problem fit (based on use case/needs) and industry fit (based on company industry). Call this AFTER discovering the company industry via web search.',
   inputSchema: z.object({
-    query: z
+    company: z
       .string()
-      .describe('Search query for case studies (industry, use case, technology, etc.)')
+      .describe('The lead company name'),
+    message: z
+      .string()
+      .describe('The lead inquiry message'),
+    industry: z
+      .string()
+      .optional()
+      .describe('The industry discovered from your research (e.g., "AI", "Retail", "Healthcare", "Software", "Finance")')
   }),
-  execute: async ({ query }) => {
-    // Use our existing case study matcher
-    const caseStudies = findRelevantCaseStudies(
-      { company: query, message: query },
-      3
-    );
+  execute: async ({ company, message, industry }) => {
+    const lead = { company, message };
 
-    if (caseStudies.length === 0) {
-      return 'No relevant case studies found';
+    // Get case studies by problem fit (based on use case keywords in message)
+    const problemFitMatches = await findCaseStudiesByProblemFit(lead, 2);
+
+    // Get case studies by industry fit (using agent-discovered industry)
+    const industryFitMatches = await findCaseStudiesByIndustryFit(industry, 2);
+
+    // Format problem fit section
+    let result = '**Case Studies by Problem Fit:**\n';
+    if (problemFitMatches.length === 0) {
+      result += 'None found\n';
+    } else {
+      problemFitMatches.forEach(match => {
+        const cs = match.caseStudy;
+        result += `- **${cs.company}** (${cs.industry}): ${cs.featuredText} URL: ${cs.url}\n`;
+      });
     }
 
-    // Format case studies for the agent
-    const formatted = caseStudies
-      .map(cs => {
-        const metrics = cs.metrics?.map(m => `${m.value} ${m.description}`).join(', ') || 'No metrics available';
-        return `**${cs.company}**\nIndustry: ${cs.industry}\n${cs.description}\nKey Results: ${metrics}\nURL: ${cs.url}`;
-      })
-      .join('\n\n');
-
-    return formatted;
-  }
-});
-
-/**
- * Duplicate checker - verifies if lead is already in the system
- */
-const checkDuplicates = tool({
-  description: 'Check if this lead already exists as a customer or previous inquiry',
-  inputSchema: z.object({
-    email: z.string().email().describe('Email address to search for'),
-    company: z.string().describe('Company name to search for')
-  }),
-  execute: async ({ email, company }) => {
-    const duplicateCheck = detectDuplicate(email, company);
-
-    if (duplicateCheck.isDuplicate && duplicateCheck.matchedContact) {
-      const contact = duplicateCheck.matchedContact;
-      return `DUPLICATE CUSTOMER FOUND: ${contact.company} is an existing ${contact.accountType} customer (${contact.status}). Account Team: ${contact.accountTeam}. Annual Value: $${contact.annualValue.toLocaleString()}. Match Reason: ${duplicateCheck.matchReason}`;
+    // Format industry fit section
+    result += '\n**Case Studies by Industry Fit:**\n';
+    if (industryFitMatches.length === 0) {
+      result += industry ? `None found for industry: ${industry}\n` : 'No industry provided\n';
+    } else {
+      industryFitMatches.forEach(match => {
+        const cs = match.caseStudy;
+        result += `- **${cs.company}** (${cs.industry}): ${cs.featuredText} URL: ${cs.url}\n`;
+      });
     }
 
-    return 'No existing customer or duplicate found';
+    return result;
   }
 });
 
@@ -132,14 +133,12 @@ Your goal is to gather comprehensive information about the lead to help qualify 
 
 Available tools:
 - **webSearch**: Search for company information, recent news, and LinkedIn profiles (use resultCategory: 'linkedin profile' to find people)
-- **findCaseStudies**: Retrieve customer success stories that match the lead's industry or use case
-- **checkDuplicates**: Verify if this contact already exists in our CRM or is a previous inquiry
+- **findCaseStudies**: Retrieve customer success stories organized by problem fit and industry fit. Pass the company name, their inquiry message, and the industry you discovered to get relevant case studies.
 
 Research strategy:
-1. First, check CRM for duplicates/existing customers
-2. Search for the person's LinkedIn profile to verify their job title and seniority
-3. Search for company information (size, industry, funding, recent news)
-4. Look for relevant case studies in our knowledge base
+1. Search for the person's LinkedIn profile to verify their job title and seniority
+2. Search for company information (size, industry, funding, recent news) - IMPORTANT: Note the industry for the next step
+3. Call findCaseStudies with the company name, message, AND the industry you discovered to get case studies organized by problem fit and industry fit
 
 IMPORTANT - Person Research:
 - Always search for the person's LinkedIn profile using their name and company
@@ -160,22 +159,22 @@ Industry: [industry or "Unknown"]
 Size: [employee count/size or "Unknown"]
 Website: [website or "Not found"]
 
-**CRM Status:**
-Salesforce Lookup: [New / Existing Customer / Duplicate]
-Account Team: [name or "N/A"]
-Annual Value: [value or "N/A"]
+**Relevant Case Studies (Problem Fit):**
+[List up to 2 case studies matching the lead's problem/use case with "[Company](URL)" links or "None found"]
 
-**Relevant Case Studies:**
-[List 1-2 relevant case study companies or "None found"]
+**Relevant Case Studies (Industry Fit):**
+[List up to 2 case studies from the lead's industry with "[Company](URL)" links or "None found"]
 
 **Red Flags:**
 [List any concerns or "None"]
+
+**Sources:**
+[List URLs from your searches that support key findings - especially for verifying job titles, company info, or news. Format as markdown links: [Article Title](URL)]
 
 Keep each field concise - single line responses only. No paragraphs.`,
   tools: {
     webSearch,
     findCaseStudies,
-    checkDuplicates
   },
   stopWhen: [stepCountIs(15)] // Max 15 tool calls
 });
@@ -184,15 +183,18 @@ Keep each field concise - single line responses only. No paragraphs.`,
  * Qualification Functions
  */
 const classificationSchema = z.object({
-  classification: z.enum(['high-quality', 'low-quality', 'support', 'duplicate', 'irrelevant']),
+  // Note: 'duplicate' is handled deterministically by CRM check, not by AI classification
+  classification: z.enum(['high-quality', 'low-quality', 'support']),
   confidence: z.number().min(0).max(1),
-  reasoning: z.string()
+  reasoning: z.string(),
 });
 
 export async function qualifyLead(
   lead: LeadFormData,
   research: string
 ): Promise<ClassificationResult> {
+  // Note: Duplicate detection is handled deterministically before this function is called.
+  // This function only runs for non-duplicate leads.
   const { object } = await generateObject({
     model: openai('gpt-4o'),
     schema: classificationSchema,
@@ -210,22 +212,11 @@ ${research}
 Classify this lead and provide your confidence score and reasoning.`
   });
 
-  // VALIDATION: If research found a duplicate customer, override classification
-  if (research.includes('DUPLICATE CUSTOMER FOUND') && object.classification !== 'duplicate') {
-    console.warn(
-      `[Workflow] AI classified as '${object.classification}' but research found duplicate customer. Overriding to 'duplicate'.`
-    );
-    return {
-      classification: 'duplicate',
-      confidence: 0.99,
-      reasoning: `${object.reasoning} [OVERRIDE: CRM search confirmed this is an existing customer, so classification was changed from '${object.classification}' to 'duplicate' to ensure proper forwarding to their Account Team.]`
-    };
-  }
-
   return {
     classification: object.classification,
     confidence: object.confidence,
-    reasoning: object.reasoning
+    reasoning: object.reasoning,
+    existingCustomer: false, // Only non-duplicates reach this function
   };
 }
 
@@ -233,13 +224,23 @@ Classify this lead and provide your confidence score and reasoning.`
  * Email Generation Functions
  */
 const emailSchema = z.object({
-  body: z.string().describe('The email body content')
+  body: z.string().describe('The email body content'),
 });
 
+/**
+ * Convert plain text to HTML paragraphs
+ * Split on double newlines for paragraphs, preserve single newlines as <br>
+ */
+function textToHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .split('\n\n')
+    .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+    .join('\n');
+}
+
 export async function generateEmailForLead(
-  lead: LeadFormData,
-  research: string,
-  classification: ClassificationResult
+  lead: LeadFormData
 ): Promise<EmailGenerationResult> {
   // Get configuration email template settings
   const { getConfiguration } = await import('./configuration-helpers');
@@ -247,10 +248,6 @@ export async function generateEmailForLead(
 
   const configuration = await getConfiguration();
   const template = configuration.emailTemplates?.highQuality || DEFAULT_CONFIGURATION.emailTemplates.highQuality;
-
-  const firstName = lead.name.split(' ')[0];
-  const greeting = template.greeting.replace('{firstName}', firstName);
-  const signoff = `${template.signOff}\n\n${configuration.sdr.name}\n${configuration.sdr.email}`;
 
   const { object } = await generateObject({
     model: openai('gpt-4o'),
@@ -263,51 +260,19 @@ LEAD INFORMATION:
 - Company: ${lead.company}
 - Message: ${lead.message}
 
-CLASSIFICATION:
-- Category: ${classification.classification}
-- Confidence: ${classification.confidence}
-- Reasoning: ${classification.reasoning}
-
-RESEARCH CONTEXT:
-${research}
-
-Generate ONLY the middle body content that addresses their specific inquiry and references relevant case studies. DO NOT include greeting or call-to-action - these will be added automatically.`
+Generate ONLY the middle body content. DO NOT include greeting, sign-off, or call-to-action - these will be added automatically.`
   });
 
-  // Return only the AI-generated body content
+  // Convert AI-generated plain text to HTML paragraphs
   // Full email will be assembled at display/send time using template settings
   return {
     subject: template.subject,
-    body: object.body
+    body: textToHtml(object.body),
+    includedCaseStudies: []
   };
 }
 
-export async function generateGenericEmail(
-  lead: LeadFormData
-): Promise<EmailGenerationResult> {
-  const subject = 'Thanks for your interest in Vercel';
-  const signoff = 'The Vercel Team\nsales@vercel.com';
-
-  const { object } = await generateObject({
-    model: openai('gpt-4o'),
-    schema: emailSchema,
-    prompt: `${GENERIC_EMAIL_PROMPT}
-
-LEAD INFORMATION:
-- Name: ${lead.name}
-- Company: ${lead.company}
-- Message: ${lead.message}
-
-Generate a brief, generic response email from Vercel directing them to self-service resources. Include the link to https://vercel.com/customers.`
-  });
-
-  return {
-    subject: subject,
-    body: object.body + '\n\n' + signoff
-  };
-}
-
-// generateLowValueEmail removed - low-quality leads now use static template from configuration
+// generateGenericEmail and generateLowValueEmail removed - low-quality leads now use static template from configuration
 
 export async function generateSupportEmail(
   lead: LeadFormData
@@ -320,14 +285,14 @@ export async function generateSupportEmail(
   const template = configuration.emailTemplates?.support || DEFAULT_CONFIGURATION.emailTemplates.support;
   const firstName = lead.name.split(' ')[0];
   const greeting = template.greeting.replace('{firstName}', firstName);
-  const signoff = `${template.signOff}\n\n${template.senderName}\n${template.senderEmail}`;
 
-  // Construct full email (no AI generation needed for support - use template directly)
-  const fullBody = `${greeting}\n\n${template.callToAction}\n\n${signoff}`;
+  // Construct full email HTML (templates are already HTML)
+  const fullBody = `${greeting}${template.body}`;
 
   return {
     subject: template.subject,
-    body: fullBody
+    body: fullBody,
+    includedCaseStudies: []
   };
 }
 
@@ -342,13 +307,13 @@ export async function generateDuplicateEmail(
   const template = configuration.emailTemplates?.duplicate || DEFAULT_CONFIGURATION.emailTemplates.duplicate;
   const firstName = lead.name.split(' ')[0];
   const greeting = template.greeting.replace('{firstName}', firstName);
-  const signoff = `${template.signOff}\n\n${template.senderName}\n${template.senderEmail}`;
 
-  // Construct full email (no AI generation needed for duplicate - use template directly)
-  const fullBody = `${greeting}\n\n${template.callToAction}\n\n${signoff}`;
+  // Construct full email HTML (templates are already HTML)
+  const fullBody = `${greeting}${template.body}`;
 
   return {
     subject: template.subject,
-    body: fullBody
+    body: fullBody,
+    includedCaseStudies: []
   };
 }

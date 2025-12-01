@@ -6,17 +6,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getConfiguration, updateConfiguration, initializeConfiguration, resetConfiguration } from '@/lib/configuration-helpers';
 import { z } from 'zod';
 
-// Email template schema (shared structure)
-const emailTemplateBaseSchema = z.object({
+// High quality email template schema (greeting + callToAction + signOff)
+const highQualityTemplateSchema = z.object({
   subject: z.string().optional(),
   greeting: z.string().optional(),
   callToAction: z.string().optional(),
   signOff: z.string().optional(),
 });
 
-const emailTemplateWithSenderSchema = emailTemplateBaseSchema.extend({
+// Low quality email template schema (body + sender info)
+const lowQualityTemplateSchema = z.object({
+  subject: z.string().optional(),
+  body: z.string().optional(),
   senderName: z.string().optional(),
   senderEmail: z.string().optional(),
+});
+
+// Simple email template schema (greeting + body, for support/duplicate)
+const simpleEmailTemplateSchema = z.object({
+  subject: z.string().optional(),
+  greeting: z.string().optional(),
+  body: z.string().optional(),
 });
 
 // Internal notification template schema (subject + body only)
@@ -32,29 +42,27 @@ const updateConfigurationSchema = z.object({
     lowQuality: z.number().min(0).max(1).optional(),
     support: z.number().min(0).max(1).optional(),
     duplicate: z.number().min(0).max(1).optional(),
-    irrelevant: z.number().min(0).max(1).optional(),
   }).optional(),
   sdr: z.object({
     name: z.string().min(1).optional(),
     email: z.string().email().optional(),
+    title: z.string().min(1).optional(),
   }).optional(),
   supportTeam: z.object({
     name: z.string().min(1).optional(),
     email: z.string().email().optional(),
   }).optional(),
   emailTemplates: z.object({
-    highQuality: emailTemplateBaseSchema.optional(),
-    lowQuality: emailTemplateWithSenderSchema.optional(),
-    support: emailTemplateWithSenderSchema.optional(),
-    duplicate: emailTemplateWithSenderSchema.optional(),
+    highQuality: highQualityTemplateSchema.optional(),
+    lowQuality: lowQualityTemplateSchema.optional(),
+    support: simpleEmailTemplateSchema.optional(),
+    duplicate: simpleEmailTemplateSchema.optional(),
     supportInternal: internalNotificationSchema.optional(),
     duplicateInternal: internalNotificationSchema.optional(),
   }).optional(),
   prompts: z.object({
     classification: z.string().optional(),
     emailHighQuality: z.string().optional(),
-    emailLowQuality: z.string().optional(),
-    emailGeneric: z.string().optional(),
   }).optional(),
   rollout: z.object({
     enabled: z.boolean().optional(),
@@ -64,6 +72,11 @@ const updateConfigurationSchema = z.object({
     enabled: z.boolean().optional(),
     testMode: z.boolean().optional(),
     testEmail: z.string().email().optional(),
+  }).optional(),
+  allowHighQualityAutoSend: z.boolean().optional(),
+  defaultCaseStudyId: z.string().nullable().optional(),
+  experimental: z.object({
+    caseStudies: z.boolean().optional(),
   }).optional(),
 });
 

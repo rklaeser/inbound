@@ -11,16 +11,14 @@ export async function GET() {
     const caseStudies = await getAllCaseStudies();
 
     // Strip embedding fields before sending to client
-    const caseStudiesWithoutEmbeddings = caseStudies.map(({ id, company, industry, description, metrics, products, url, quote, quotedPerson }) => ({
+    const caseStudiesWithoutEmbeddings = caseStudies.map(({ id, company, industry, products, url, logoSvg, featuredText }) => ({
       id,
       company,
       industry,
-      description,
-      metrics,
       products,
       url,
-      quote,
-      quotedPerson,
+      logoSvg,
+      featuredText,
     }));
 
     return NextResponse.json({

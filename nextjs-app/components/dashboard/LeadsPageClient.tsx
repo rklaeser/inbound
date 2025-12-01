@@ -25,13 +25,10 @@ export default function LeadsPageClient({ initialLeads, children }: LeadsPageCli
       });
       const data = await res.json();
       if (data.success) {
-        alert(`✅ Successfully deleted ${data.deletedCount} leads`);
-        window.location.reload(); // Reload to update the leads list
-      } else {
-        alert('❌ Failed to delete leads: ' + data.error);
+        window.location.reload();
       }
     } catch (error) {
-      alert('❌ Error deleting leads: ' + error);
+      console.error('Error deleting leads:', error);
     } finally {
       setIsDeleting(false);
     }
@@ -41,9 +38,9 @@ export default function LeadsPageClient({ initialLeads, children }: LeadsPageCli
     <div className="container mx-auto px-4 py-8">
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold mb-1">All Leads</h2>
+          <h2 className="text-xl font-semibold mb-1">Leads</h2>
           <p className="text-sm text-muted-foreground">
-            Complete list of all leads with status and classification
+            All inbound sales leads.
           </p>
         </div>
         {isDeveloperMode && (

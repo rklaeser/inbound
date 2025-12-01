@@ -41,9 +41,7 @@ function getBadgeForLead(lead: Lead): BadgeInfo {
 
     // Choose icon based on terminal state
     let icon: React.ReactElement | null = <Check className="h-3 w-3" />;
-    if (terminalState === 'dead') {
-      icon = <X className="h-3 w-3" />;
-    } else if (terminalState === 'forwarded_support' || terminalState === 'forwarded_account_team') {
+    if (terminalState === 'forwarded_support' || terminalState === 'forwarded_account_team') {
       icon = <ArrowRight className="h-3 w-3" />;
     }
 
@@ -53,6 +51,17 @@ function getBadgeForLead(lead: Lead): BadgeInfo {
       text: colors.text,
       border: colors.border,
       icon,
+    };
+  }
+
+  // Waiting for human classification (AI classification rate check failed)
+  if (status.status === 'classify') {
+    return {
+      label: 'Needs Classification',
+      bg: 'rgba(234,179,8,0.1)',     // yellow
+      text: '#eab308',
+      border: 'rgba(234,179,8,0.2)',
+      icon: <AlertCircle className="h-3 w-3" />
     };
   }
 
@@ -75,9 +84,7 @@ function getBadgeForLead(lead: Lead): BadgeInfo {
       const action = getClassificationAction(classification);
       const colors = getColorsFromHex(action.color);
       const actionLabel = action.short;
-      const icon = classification === 'irrelevant'
-        ? <X className="h-3 w-3" />
-        : <ArrowRight className="h-3 w-3" />;
+      const icon = <ArrowRight className="h-3 w-3" />;
 
       return {
         label: actionLabel,

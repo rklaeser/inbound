@@ -12,7 +12,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './firestore';
 import { generateEmbedding } from './embedding-service';
-import type { CaseStudy, CaseStudyMetric, Industry, VercelProduct } from './case-studies';
+import type { CaseStudy, Industry, VercelProduct } from './case-studies';
+import { invalidateCaseStudyCache } from './case-study-matcher';
 
 /**
  * Firebase document structure for case studies
@@ -36,20 +37,8 @@ function createCaseStudyText(caseStudy: Omit<CaseStudy, 'id'>): string {
 
   parts.push(`Company: ${caseStudy.company}`);
   parts.push(`Industry: ${caseStudy.industry}`);
-  parts.push(`Description: ${caseStudy.description}`);
-
-  if (caseStudy.metrics && caseStudy.metrics.length > 0) {
-    const metricsText = caseStudy.metrics
-      .map(m => `${m.value} ${m.description}`)
-      .join(', ');
-    parts.push(`Key Results: ${metricsText}`);
-  }
-
   parts.push(`Technologies: ${caseStudy.products.join(', ')}`);
-
-  if (caseStudy.quote) {
-    parts.push(`Customer Quote: ${caseStudy.quote}`);
-  }
+  parts.push(`Featured: ${caseStudy.featuredText}`);
 
   return parts.join('. ');
 }
@@ -112,6 +101,9 @@ export async function createCaseStudy(
   const docRef = await addDoc(caseStudiesRef, docData);
   console.log(`[Case Studies] Created ${caseStudy.company} with embedding (ID: ${docRef.id})`);
 
+  // Invalidate cache so new case study is available immediately
+  invalidateCaseStudyCache();
+
   return docRef.id;
 }
 
@@ -136,9 +128,7 @@ export async function updateCaseStudy(
   // Regenerate embedding if content changed
   const contentChanged =
     updates.company !== undefined ||
-    updates.description !== undefined ||
-    updates.metrics !== undefined ||
-    updates.quote !== undefined ||
+    updates.featuredText !== undefined ||
     updates.industry !== undefined ||
     updates.products !== undefined;
 
@@ -161,6 +151,9 @@ export async function updateCaseStudy(
   }
 
   await updateDoc(docRef, updateData);
+
+  // Invalidate cache so updates are available immediately
+  invalidateCaseStudyCache();
 }
 
 /**
@@ -169,6 +162,9 @@ export async function updateCaseStudy(
 export async function deleteCaseStudy(id: string): Promise<void> {
   const docRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(docRef);
+
+  // Invalidate cache so deletion is reflected immediately
+  invalidateCaseStudyCache();
 }
 
 /**
@@ -188,10 +184,6 @@ export function validateCaseStudy(data: Partial<CaseStudy>): {
     errors.push('Industry is required');
   }
 
-  if (!data.description?.trim()) {
-    errors.push('Description is required');
-  }
-
   if (!data.url?.trim()) {
     errors.push('URL is required');
   } else {
@@ -204,6 +196,14 @@ export function validateCaseStudy(data: Partial<CaseStudy>): {
 
   if (!data.products || data.products.length === 0) {
     errors.push('At least one Vercel product is required');
+  }
+
+  if (!data.logoSvg?.trim()) {
+    errors.push('Logo SVG is required');
+  }
+
+  if (!data.featuredText?.trim()) {
+    errors.push('Featured text is required');
   }
 
   return {

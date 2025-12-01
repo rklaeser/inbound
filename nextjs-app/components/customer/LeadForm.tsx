@@ -18,8 +18,39 @@ import { runTests, type TestRunResult } from '@/actions/run-tests';
 import { testData } from '@/lib/test-data';
 
 interface LeadFormProps {
-  onSuccess: (leadData: { company: string; message: string }) => void;
+  onSuccess: (leadData: { company: string; message: string; leadId: string }) => void;
   devModeEnabled?: boolean;
+}
+
+// Common personal/free email domains to block
+const personalEmailDomains = new Set([
+  'gmail.com',
+  'yahoo.com',
+  'yahoo.co.uk',
+  'hotmail.com',
+  'hotmail.co.uk',
+  'outlook.com',
+  'live.com',
+  'msn.com',
+  'aol.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'protonmail.com',
+  'proton.me',
+  'mail.com',
+  'zoho.com',
+  'yandex.com',
+  'gmx.com',
+  'gmx.net',
+  'fastmail.com',
+  'tutanota.com',
+  'hey.com',
+]);
+
+function isPersonalEmail(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return domain ? personalEmailDomains.has(domain) : false;
 }
 
 const formSchema = z.object({
@@ -27,7 +58,10 @@ const formSchema = z.object({
   email: z
     .string()
     .min(1, 'Email is required')
-    .email('Please enter a valid email'),
+    .email('Please enter a valid email')
+    .refine((email) => !isPersonalEmail(email), {
+      message: 'Please enter a valid work email',
+    }),
   company: z.string().min(1, 'Company is required'),
   message: z
     .string()
@@ -63,10 +97,13 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
           throw new Error('Failed to submit lead');
         }
 
-        // Pass lead data to parent
+        const result = await response.json();
+
+        // Pass lead data to parent (including leadId for real-time updates)
         onSuccess({
           company: value.company,
           message: value.message,
+          leadId: result.leadId,
         });
 
         // Reset form
@@ -108,10 +145,13 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
         throw new Error('Failed to submit test lead');
       }
 
-      // Pass lead data to parent
+      const result = await response.json();
+
+      // Pass lead data to parent (including leadId for real-time updates)
       onSuccess({
         company: testCase.data.company,
         message: testCase.data.message,
+        leadId: result.leadId,
       });
 
       // Reset form
@@ -412,8 +452,9 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
       {/* Submit Button */}
       <Button
         type="submit"
+        variant="blue"
         disabled={form.state.isSubmitting}
-        className="w-full"
+        className="w-full rounded-full"
       >
         {form.state.isSubmitting ? (
           <>

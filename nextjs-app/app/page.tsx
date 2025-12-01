@@ -7,7 +7,7 @@ import SuccessMessage from '@/components/customer/SuccessMessage';
 
 export default function CustomerPage() {
   const [showSuccess, setShowSuccess] = useState(false);
-  const [submittedLead, setSubmittedLead] = useState<{ company: string; message: string } | null>(null);
+  const [submittedLeadId, setSubmittedLeadId] = useState<string | null>(null);
   const [devModeEnabled, setDevModeEnabled] = useState(false);
   const isDevModeAvailable = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
 
@@ -46,20 +46,36 @@ export default function CustomerPage() {
             </span>
           </div>
 
-          {/* Dev Mode Toggle */}
-          {isDevModeAvailable && (
-            <button
-              onClick={toggleDevMode}
-              className="px-4 py-2 rounded-md border text-sm font-medium transition-all duration-150"
+          {/* Header Actions */}
+          <div className="flex items-center gap-3">
+            {/* Dashboard Button */}
+            <a
+              href="/dashboard"
+              className="px-4 py-2 rounded-md border text-sm font-medium transition-all duration-150 hover:border-opacity-100"
               style={{
-                background: devModeEnabled ? 'var(--blue)' : 'transparent',
-                borderColor: devModeEnabled ? 'var(--blue)' : 'var(--border-custom)',
-                color: devModeEnabled ? '#000' : 'var(--text-secondary)',
+                background: 'transparent',
+                borderColor: 'var(--border-custom)',
+                color: 'var(--text-secondary)',
               }}
             >
-              {devModeEnabled ? '● Dev Mode ON' : '○ Dev Mode OFF'}
-            </button>
-          )}
+              Dashboard
+            </a>
+
+            {/* Dev Mode Toggle */}
+            {isDevModeAvailable && (
+              <button
+                onClick={toggleDevMode}
+                className="px-4 py-2 rounded-md border text-sm font-medium transition-all duration-150"
+                style={{
+                  background: devModeEnabled ? 'var(--blue)' : 'transparent',
+                  borderColor: devModeEnabled ? 'var(--blue)' : 'var(--border-custom)',
+                  color: devModeEnabled ? '#000' : 'var(--text-secondary)',
+                }}
+              >
+                {devModeEnabled ? '● Dev Mode ON' : '○ Dev Mode OFF'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -97,17 +113,13 @@ export default function CustomerPage() {
           >
             {showSuccess ? (
               <SuccessMessage
-                onReset={() => {
-                  setShowSuccess(false);
-                  setSubmittedLead(null);
-                }}
-                leadData={submittedLead || undefined}
+                leadId={submittedLeadId || undefined}
                 devModeEnabled={devModeEnabled}
               />
             ) : (
               <LeadForm
                 onSuccess={(leadData) => {
-                  setSubmittedLead(leadData);
+                  setSubmittedLeadId(leadData.leadId);
                   setShowSuccess(true);
                 }}
                 devModeEnabled={devModeEnabled}

@@ -4,6 +4,34 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+interface HumanAIComparisonStats {
+  totalComparisons: number;
+  agreements: number;
+  disagreements: number;
+  agreementRate: number;
+  byComparisonType: {
+    blind: { total: number; agreements: number; agreementRate: number };
+    override: { total: number; agreements: number; agreementRate: number };
+  };
+  byConfidenceBucket: {
+    bucket: string;
+    total: number;
+    agreements: number;
+    agreementRate: number;
+  }[];
+  byClassification: {
+    classification: string;
+    total: number;
+    agreements: number;
+    agreementRate: number;
+  }[];
+  confusionMatrix: {
+    aiClassification: string;
+    humanClassification: string;
+    count: number;
+  }[];
+}
+
 interface AnalyticsData {
   totalLeads: number;
   leadsInReview: number;
@@ -18,7 +46,6 @@ interface AnalyticsData {
     'low-quality': number;
     support: number;
     duplicate: number;
-    irrelevant: number;
   };
   autoSendRate: number;
   humanOverrideRate: number;
@@ -33,6 +60,7 @@ interface AnalyticsData {
   avgTimeToSendMs: number;
   avgTimeToMeetingMs: number;
   meetingsBooked: number;
+  humanAIComparison: HumanAIComparisonStats | null;
 }
 
 export default function AnalyticsPage() {
@@ -136,106 +164,14 @@ export default function AnalyticsPage() {
           subtext={`${analytics.forwardedSupport} support, ${analytics.forwardedAccountTeam} account`}
         />
         <StatCard
-          label="Dead / Irrelevant"
-          value={analytics.dead}
-          subtext="No action taken"
+          label="Generic Emails"
+          value={analytics.sentGeneric}
+          subtext="Low-quality leads"
           variant="muted"
         />
       </div>
 
-      {/* Bot Performance */}
-      <div>
-        <h2 className="text-lg font-medium text-[#fafafa] mb-4">Bot Performance</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard
-            label="Auto-send Rate"
-            value={`${analytics.autoSendRate.toFixed(1)}%`}
-            subtext="Processed without review"
-            variant={analytics.autoSendRate > 50 ? 'success' : 'default'}
-          />
-          <StatCard
-            label="Human Override Rate"
-            value={`${analytics.humanOverrideRate.toFixed(1)}%`}
-            subtext="Reclassified by humans"
-            variant={analytics.humanOverrideRate > 20 ? 'warning' : 'default'}
-          />
-          <StatCard
-            label="Bot Accuracy"
-            value={`${analytics.botAccuracy.toFixed(1)}%`}
-            subtext="On reviewed leads"
-            variant={analytics.botAccuracy > 80 ? 'success' : analytics.botAccuracy > 60 ? 'warning' : 'error'}
-          />
-        </div>
-      </div>
-
-      {/* Classification Breakdown & Confidence */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Classification Breakdown */}
-        <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a]">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium text-[#fafafa]">Classification Breakdown</CardTitle>
-            <CardDescription className="text-[#666]">Current classification distribution</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ClassificationBar
-              label="High Quality"
-              count={analytics.classificationBreakdown['high-quality']}
-              total={analytics.totalLeads}
-              color="bg-emerald-500"
-            />
-            <ClassificationBar
-              label="Low Quality"
-              count={analytics.classificationBreakdown['low-quality']}
-              total={analytics.totalLeads}
-              color="bg-amber-500"
-            />
-            <ClassificationBar
-              label="Support"
-              count={analytics.classificationBreakdown.support}
-              total={analytics.totalLeads}
-              color="bg-blue-500"
-            />
-            <ClassificationBar
-              label="Duplicate"
-              count={analytics.classificationBreakdown.duplicate}
-              total={analytics.totalLeads}
-              color="bg-purple-500"
-            />
-            <ClassificationBar
-              label="Irrelevant"
-              count={analytics.classificationBreakdown.irrelevant}
-              total={analytics.totalLeads}
-              color="bg-[#444]"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Confidence by Classification */}
-        <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a]">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-medium text-[#fafafa]">Confidence by Classification</CardTitle>
-            <CardDescription className="text-[#666]">
-              Average: <span className="text-[#fafafa] font-mono">{(analytics.avgConfidence * 100).toFixed(1)}%</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {analytics.confidenceByClassification.length === 0 ? (
-              <p className="text-[#666] text-sm">No confidence data yet</p>
-            ) : (
-              analytics.confidenceByClassification.map(({ classification, avgConfidence, count }) => (
-                <ConfidenceBar
-                  key={classification}
-                  label={formatClassification(classification)}
-                  confidence={avgConfidence}
-                  count={count}
-                />
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Timing Metrics */}
+      {/* Processing Times */}
       <div>
         <h2 className="text-lg font-medium text-[#fafafa] mb-4">Processing Times</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -275,6 +211,218 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Bot Performance */}
+      <div>
+        <h2 className="text-lg font-medium text-[#fafafa] mb-4">Bot Performance</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard
+            label="Auto-send Rate"
+            value={`${analytics.autoSendRate.toFixed(1)}%`}
+            subtext="Processed without review"
+            variant={analytics.autoSendRate > 50 ? 'success' : 'default'}
+          />
+          <StatCard
+            label="Human Override Rate"
+            value={`${analytics.humanOverrideRate.toFixed(1)}%`}
+            subtext="Reclassified by humans"
+            variant={analytics.humanOverrideRate > 20 ? 'warning' : 'default'}
+          />
+          <StatCard
+            label="Bot Accuracy"
+            value={`${analytics.botAccuracy.toFixed(1)}%`}
+            subtext="On reviewed leads"
+            variant={analytics.botAccuracy > 80 ? 'success' : analytics.botAccuracy > 60 ? 'warning' : 'error'}
+          />
+        </div>
+      </div>
+
+      {/* Human vs AI Comparison */}
+      {analytics.humanAIComparison && analytics.humanAIComparison.totalComparisons > 0 && (
+        <div>
+          <h2 className="text-lg font-medium text-[#fafafa] mb-4">Human vs AI Classification Comparison</h2>
+
+          {/* Overview Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              label="Total Comparisons"
+              value={analytics.humanAIComparison.totalComparisons}
+              subtext="Leads where human classified"
+            />
+            <StatCard
+              label="Agreement Rate"
+              value={`${analytics.humanAIComparison.agreementRate}%`}
+              subtext={`${analytics.humanAIComparison.agreements} agreements`}
+              variant={analytics.humanAIComparison.agreementRate >= 80 ? 'success' : analytics.humanAIComparison.agreementRate >= 60 ? 'warning' : 'error'}
+            />
+            <StatCard
+              label="Blind Agreement"
+              value={`${analytics.humanAIComparison.byComparisonType.blind.agreementRate}%`}
+              subtext={`${analytics.humanAIComparison.byComparisonType.blind.total} samples`}
+              variant={analytics.humanAIComparison.byComparisonType.blind.agreementRate >= 80 ? 'success' : 'default'}
+            />
+            <StatCard
+              label="Override Agreement"
+              value={`${analytics.humanAIComparison.byComparisonType.override.agreementRate}%`}
+              subtext={`${analytics.humanAIComparison.byComparisonType.override.total} samples`}
+              variant={analytics.humanAIComparison.byComparisonType.override.agreementRate >= 80 ? 'success' : 'default'}
+            />
+          </div>
+
+          {/* Detailed Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Agreement by Confidence */}
+            <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a]">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium text-[#fafafa]">Agreement by AI Confidence</CardTitle>
+                <CardDescription className="text-[#666]">Does higher confidence correlate with human agreement?</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {analytics.humanAIComparison.byConfidenceBucket.length === 0 ? (
+                  <p className="text-[#666] text-sm">No data yet</p>
+                ) : (
+                  analytics.humanAIComparison.byConfidenceBucket.map(({ bucket, total, agreements, agreementRate }) => (
+                    <AgreementBar
+                      key={bucket}
+                      label={bucket}
+                      agreementRate={agreementRate}
+                      count={total}
+                      agreements={agreements}
+                    />
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Agreement by Classification */}
+            <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a]">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium text-[#fafafa]">Agreement by Classification</CardTitle>
+                <CardDescription className="text-[#666]">Which classifications do humans agree with most?</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {analytics.humanAIComparison.byClassification.length === 0 ? (
+                  <p className="text-[#666] text-sm">No data yet</p>
+                ) : (
+                  analytics.humanAIComparison.byClassification.map(({ classification, total, agreements, agreementRate }) => (
+                    <AgreementBar
+                      key={classification}
+                      label={formatClassification(classification)}
+                      agreementRate={agreementRate}
+                      count={total}
+                      agreements={agreements}
+                    />
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Confusion Matrix */}
+          {analytics.humanAIComparison.confusionMatrix.length > 0 && (
+            <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a] mt-6">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-medium text-[#fafafa]">Classification Confusion Matrix</CardTitle>
+                <CardDescription className="text-[#666]">When AI and human disagree, what do they each choose?</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[rgba(255,255,255,0.1)]">
+                        <th className="text-left py-2 px-3 text-[#666] font-medium">AI Classification</th>
+                        <th className="text-left py-2 px-3 text-[#666] font-medium">Human Classification</th>
+                        <th className="text-right py-2 px-3 text-[#666] font-medium">Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.humanAIComparison.confusionMatrix.map(({ aiClassification, humanClassification, count }, i) => (
+                        <tr key={i} className="border-b border-[rgba(255,255,255,0.05)]">
+                          <td className="py-2 px-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getClassificationStyle(aiClassification)}`}>
+                              {formatClassification(aiClassification)}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getClassificationStyle(humanClassification)}`}>
+                              {formatClassification(humanClassification)}
+                            </span>
+                            {aiClassification === humanClassification && (
+                              <span className="ml-2 text-emerald-500 text-xs">✓ Match</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-[#fafafa]">{count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Classification Breakdown & Confidence */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Classification Breakdown */}
+        <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-medium text-[#fafafa]">Classification Breakdown</CardTitle>
+            <CardDescription className="text-[#666]">Current classification distribution</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ClassificationBar
+              label="High Quality"
+              count={analytics.classificationBreakdown['high-quality']}
+              total={analytics.totalLeads}
+              color="bg-emerald-500"
+            />
+            <ClassificationBar
+              label="Low Quality"
+              count={analytics.classificationBreakdown['low-quality']}
+              total={analytics.totalLeads}
+              color="bg-amber-500"
+            />
+            <ClassificationBar
+              label="Support"
+              count={analytics.classificationBreakdown.support}
+              total={analytics.totalLeads}
+              color="bg-blue-500"
+            />
+            <ClassificationBar
+              label="Duplicate"
+              count={analytics.classificationBreakdown.duplicate}
+              total={analytics.totalLeads}
+              color="bg-purple-500"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Confidence by Classification */}
+        <Card className="border-[rgba(255,255,255,0.1)] bg-[#0a0a0a]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base font-medium text-[#fafafa]">Confidence by Classification</CardTitle>
+            <CardDescription className="text-[#666]">
+              Average: <span className="text-[#fafafa] font-mono">{(analytics.avgConfidence * 100).toFixed(1)}%</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {analytics.confidenceByClassification.length === 0 ? (
+              <p className="text-[#666] text-sm">No confidence data yet</p>
+            ) : (
+              analytics.confidenceByClassification.map(({ classification, avgConfidence, count }) => (
+                <ConfidenceBar
+                  key={classification}
+                  label={formatClassification(classification)}
+                  confidence={avgConfidence}
+                  count={count}
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -411,4 +559,46 @@ function formatTime(ms: number): string {
   } else {
     return `${seconds}s`;
   }
+}
+
+function AgreementBar({
+  label,
+  agreementRate,
+  count,
+  agreements,
+}: {
+  label: string;
+  agreementRate: number;
+  count: number;
+  agreements: number;
+}) {
+  const color = agreementRate >= 80 ? 'bg-emerald-500' : agreementRate >= 60 ? 'bg-amber-500' : 'bg-red-500';
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-[#a1a1a1]">{label}</span>
+          <span className="text-xs text-[#444] font-mono">({agreements}/{count})</span>
+        </div>
+        <span className="text-sm font-mono text-[#fafafa] tabular-nums">{agreementRate}%</span>
+      </div>
+      <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div
+          className={`h-full ${color} rounded-full transition-all duration-500 ease-out`}
+          style={{ width: `${agreementRate}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function getClassificationStyle(classification: string): string {
+  const styles: Record<string, string> = {
+    'high-quality': 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+    'low-quality': 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+    'support': 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+    'duplicate': 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
+  };
+  return styles[classification] || 'bg-[#1a1a1a] text-[#666] border border-[rgba(255,255,255,0.1)]';
 }

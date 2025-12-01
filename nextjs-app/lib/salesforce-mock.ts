@@ -140,6 +140,13 @@ export interface DuplicateDetectionResult {
   matchReason?: string;
 }
 
+/**
+ * Get a customer by ID
+ */
+export function getCustomerById(id: string): SalesforceContact | null {
+  return MOCK_CRM_CUSTOMERS.find(contact => contact.id === id) || null;
+}
+
 export function detectDuplicate(email: string, company?: string): DuplicateDetectionResult {
   const match = salesforceSearch(email, company);
 

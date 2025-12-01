@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } from "./prompts";
 
 // =============================================================================
 // ENUMS
@@ -6,14 +7,18 @@ import { Timestamp } from "firebase/firestore";
 
 // Classification types - what kind of lead is this?
 export type Classification =
-  | 'high-quality'   // Strong fit, gets personalized meeting offer email
-  | 'low-quality'    // Real opportunity but not a fit, gets generic sales email
-  | 'support'        // Existing customer needing help, forwarded to support
-  | 'duplicate'      // Already a customer in CRM, forwarded to account team
-  | 'irrelevant';    // Spam/test/nonsense, no email sent
+  | 'high-quality'      // Strong fit, gets personalized meeting offer email
+  | 'low-quality'       // Not a fit or spam/nonsense, gets generic sales email
+  | 'support'           // Existing customer needing help, forwarded to support
+  | 'duplicate'         // Already a customer in CRM, forwarded to account team
+  | 'customer-reroute'  // Customer disputed support/duplicate classification via escape hatch
+  | 'internal-reroute'; // Internal team (support/account) disputed classification
 
 // Status types - where is this lead in the workflow?
-export type LeadStatus = 'review' | 'done';
+// classify: waiting for human to classify (AI classification rate check failed)
+// review: AI classified, waiting for human to review/approve
+// done: action taken (email sent or forwarded)
+export type LeadStatus = 'classify' | 'review' | 'done';
 
 // Terminal state - derived from status + classification when status = 'done'
 export type TerminalState =
@@ -21,7 +26,8 @@ export type TerminalState =
   | 'sent_generic'            // low-quality lead, generic sales email sent
   | 'forwarded_support'       // support lead, forwarded to support team
   | 'forwarded_account_team'  // duplicate lead, forwarded to account team
-  | 'dead';                   // irrelevant lead, no email sent
+  | 'customer_reroute'        // customer disputed classification, needs SDR review
+  | 'internal_reroute';       // internal team disputed classification, needs SDR review
 
 // =============================================================================
 // CLASSIFICATION CONFIG (single source of truth for display)
@@ -104,19 +110,34 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
       color: '#a855f7',
     },
   },
-  irrelevant: {
-    key: 'irrelevant',
-    label: 'Irrelevant',
-    description: 'Spam, test submission, or otherwise irrelevant',
+  'customer-reroute': {
+    key: 'customer-reroute',
+    label: 'Customer Reroute',
+    description: 'Customer disputed support/duplicate classification',
     colors: {
-      text: '#a1a1a1',
-      background: 'rgba(161, 161, 161, 0.1)',
-      border: 'rgba(161, 161, 161, 0.2)',
+      text: '#f59e0b',
+      background: 'rgba(245, 158, 11, 0.1)',
+      border: 'rgba(245, 158, 11, 0.2)',
     },
     action: {
-      short: 'Mark Dead',
-      long: 'Mark Dead',
-      color: '#ef4444',  // Red for destructive action
+      short: 'Needs Review',
+      long: 'Review Reroute Request',
+      color: '#f59e0b',
+    },
+  },
+  'internal-reroute': {
+    key: 'internal-reroute',
+    label: 'Internal Reroute',
+    description: 'Internal team disputed classification',
+    colors: {
+      text: '#ec4899',
+      background: 'rgba(236, 72, 153, 0.1)',
+      border: 'rgba(236, 72, 153, 0.2)',
+    },
+    action: {
+      short: 'Needs Review',
+      long: 'Review Internal Reroute',
+      color: '#ec4899',
     },
   },
 };
@@ -191,13 +212,22 @@ export const TERMINAL_STATES: Record<TerminalState, TerminalStateConfig> = {
       border: 'rgba(168, 85, 247, 0.2)',
     },
   },
-  dead: {
-    key: 'dead',
-    label: 'Dead',
+  customer_reroute: {
+    key: 'customer_reroute',
+    label: 'Customer Reroute',
     colors: {
-      text: '#a1a1a1',
-      background: 'rgba(161, 161, 161, 0.1)',
-      border: 'rgba(161, 161, 161, 0.2)',
+      text: '#f59e0b',
+      background: 'rgba(245, 158, 11, 0.1)',
+      border: 'rgba(245, 158, 11, 0.2)',
+    },
+  },
+  internal_reroute: {
+    key: 'internal_reroute',
+    label: 'Internal Reroute',
+    colors: {
+      text: '#ec4899',
+      background: 'rgba(236, 72, 153, 0.1)',
+      border: 'rgba(236, 72, 153, 0.2)',
     },
   },
 };
@@ -213,6 +243,22 @@ export function getTerminalStateLabel(s: TerminalState): string {
 
 export function getTerminalStateColors(s: TerminalState) {
   return TERMINAL_STATES[s].colors;
+}
+
+// =============================================================================
+// MATCHED CASE STUDIES (for customer success page)
+// =============================================================================
+
+export interface MatchedCaseStudy {
+  caseStudyId: string;
+  company: string;
+  industry: string;
+  url: string;
+  matchType: 'industry' | 'problem' | 'mentioned';
+  matchReason: string;
+  // Display data
+  logoSvg?: string;       // Raw SVG markup stored in Firestore
+  featuredText?: string;  // Featured text from Vercel's customer page
 }
 
 // =============================================================================
@@ -233,12 +279,9 @@ export interface BotResearch {
   confidence: number;  // 0-1
   classification: Classification;
   reasoning: string;
-}
-
-// Bot generated email text (only highQualityText is AI-generated; lowQuality uses static template)
-export interface BotText {
-  highQualityText: string;
-  lowQualityText: string | null;  // Deprecated - low-quality leads use static template
+  existingCustomer: boolean;  // True if CRM lookup found existing customer relationship
+  crmRecordId?: string;  // CRM record ID if existing customer found
+  researchReport?: string;  // Full research report from ExaAI (optional for backwards compatibility)
 }
 
 // Bot rollout decision
@@ -247,13 +290,12 @@ export interface BotRollout {
   useBot: boolean;
 }
 
-// Human edits to email
-export interface HumanEdits {
-  note: string | null;  // Context on tone or word choices that caused a rewrite
-  versions: Array<{
-    text: string;
-    timestamp: Date | Timestamp;
-  }>;
+// Email content - single source of truth for email text
+export interface Email {
+  text: string;                    // Current email text (bot-generated initially, can be edited)
+  createdAt: Date | Timestamp;     // When bot first created it
+  editedAt: Date | Timestamp;      // When last edited (same as createdAt initially)
+  lastEditedBy?: string;           // SDR name who edited (undefined if bot-only)
 }
 
 // Lead status information
@@ -261,7 +303,7 @@ export interface StatusInfo {
   status: LeadStatus;
   received_at: Date | Timestamp;
   sent_at: Date | Timestamp | null;
-  sent_by: string | null;  // "bot" or user name like "Ryan"
+  sent_by: string | null;  // "bot" for AI, "system" for deterministic rules, or user name like "Ryan"
 }
 
 // Classification entry (bot or human)
@@ -282,11 +324,13 @@ export interface Lead {
 
   // Bot outputs (null until processed)
   bot_research: BotResearch | null;
-  bot_text: BotText | null;
   bot_rollout: BotRollout | null;
 
-  // Human edits (null if no edits)
-  human_edits: HumanEdits | null;
+  // Email content (null until generated by workflow)
+  email: Email | null;
+
+  // Edit note for context (reroute reasons, etc.)
+  edit_note?: string | null;
 
   // Status
   status: StatusInfo;
@@ -300,6 +344,21 @@ export interface Lead {
     isTestLead: boolean;
     testCase: string;
     expectedClassifications: readonly Classification[];
+  };
+
+  // Matched case studies from workflow research (optional - populated after research step)
+  matched_case_studies?: MatchedCaseStudy[];
+
+  // Support team feedback (optional - set when support marks lead as self-service)
+  supportFeedback?: {
+    markedSelfService: boolean;
+    timestamp: Date;
+  };
+
+  // Sent email content (optional - populated when email is sent, for display on success page)
+  sent_email?: {
+    subject: string;
+    html: string;
   };
 }
 
@@ -319,7 +378,8 @@ export function getTerminalState(lead: Lead): TerminalState | null {
     case 'low-quality': return 'sent_generic';
     case 'support': return 'forwarded_support';
     case 'duplicate': return 'forwarded_account_team';
-    case 'irrelevant': return 'dead';
+    case 'customer-reroute': return 'customer_reroute';
+    case 'internal-reroute': return 'internal_reroute';
   }
 }
 
@@ -350,18 +410,20 @@ export interface FilterOption {
 
 // Status filter options (matches lead.status.status)
 export const STATUS_FILTER_OPTIONS: FilterOption[] = [
-  { key: 'review', label: 'Review', color: '#f97316' },  // orange-500
-  { key: 'done', label: 'Done', color: '#22c55e' },      // green-500
+  { key: 'classify', label: 'Classify', color: '#eab308' },  // yellow-500
+  { key: 'review', label: 'Review', color: '#f97316' },      // orange-500
+  { key: 'done', label: 'Done', color: '#22c55e' },          // green-500
 ];
 
 // Type filter options (matches classification)
 export const TYPE_FILTER_OPTIONS: FilterOption[] = [
-  { key: 'high-quality', label: 'High Quality', color: '#22c55e' },  // green-500
-  { key: 'low-quality', label: 'Low Quality', color: '#a1a1a1' },    // gray
-  { key: 'support', label: 'Support', color: '#3b82f6' },            // blue-500
-  { key: 'duplicate', label: 'Duplicate', color: '#a855f7' },        // purple-500
-  { key: 'irrelevant', label: 'Irrelevant', color: '#ef4444' },      // red-500
-  { key: 'unclassified', label: 'Unclassified', color: '#f97316' },  // orange-500
+  { key: 'high-quality', label: 'High Quality', color: '#22c55e' },        // green-500
+  { key: 'low-quality', label: 'Low Quality', color: '#a1a1a1' },          // gray
+  { key: 'support', label: 'Support', color: '#3b82f6' },                  // blue-500
+  { key: 'duplicate', label: 'Duplicate', color: '#a855f7' },              // purple-500
+  { key: 'customer-reroute', label: 'Customer Reroute', color: '#f59e0b' }, // amber-500
+  { key: 'internal-reroute', label: 'Internal Reroute', color: '#ec4899' }, // pink-500
+  { key: 'unclassified', label: 'Unclassified', color: '#f97316' },        // orange-500
 ];
 
 // Legacy helper for compatibility (use getTerminalStateLabel instead)
@@ -382,16 +444,22 @@ export function getClassificationDisplay(classification: Classification): { labe
 
 export interface Configuration {
   thresholds: {
-    highQuality: number;    // Default 0.95 - auto-send meeting offer
-    lowQuality: number;     // Default 0.9 - auto-send generic email
+    highQuality: number;    // Default 0.98 - auto-send meeting offer (only if allowHighQualityAutoSend is true)
+    lowQuality: number;     // Default 0.51 - auto-send generic email
     support: number;        // Default 0.9 - auto-forward to support
-    duplicate: number;      // Default 0.9 - auto-forward to account team
-    irrelevant: number;     // Default 0.85 - auto-mark as dead
+    // Note: duplicate threshold removed - duplicates always auto-forward via deterministic CRM check
   };
+
+  // High-quality leads require human review by default since they offer meetings
+  // Set to true to allow auto-sending when confidence >= highQuality threshold
+  allowHighQualityAutoSend: boolean;
 
   sdr: {
     name: string;
+    lastName: string;
     email: string;
+    title: string;    // Job title, e.g., "Development Representative"
+    avatar?: string;  // URL to SDR's profile picture
   };
 
   // Forwarding destination for support requests
@@ -416,18 +484,12 @@ export interface Configuration {
     support: {
       subject: string;
       greeting: string;
-      callToAction: string;
-      signOff: string;
-      senderName: string;
-      senderEmail: string;
+      body: string;
     };
     duplicate: {
       subject: string;
       greeting: string;
-      callToAction: string;
-      signOff: string;
-      senderName: string;
-      senderEmail: string;
+      body: string;
     };
     // Internal notifications (sent to internal teams, not customers)
     supportInternal: {
@@ -443,19 +505,25 @@ export interface Configuration {
   prompts: {
     classification: string;
     emailHighQuality: string;
-    emailLowQuality: string;
-    emailGeneric: string;
   };
 
   rollout: {
-    enabled: boolean;
-    percentage: number;  // 0-1
+    percentage: number;  // 0-1 (0 = disabled, 1 = 100% auto-send)
   };
 
   email: {
     enabled: boolean;           // Master switch for sending emails
     testMode: boolean;          // When true, all emails go to testEmail
     testEmail: string;          // Test email address
+  };
+
+  // Default case study for fallback matching (used when no industry/problem match is found)
+  // Also used for low-quality lead emails
+  defaultCaseStudyId: string | null;
+
+  // Experimental features
+  experimental: {
+    caseStudies: boolean;  // When true, case studies are shown on lead detail page and appended to emails
   };
 
   updated_at: Date | Timestamp;
@@ -465,75 +533,96 @@ export interface Configuration {
 // Default configuration values
 export const DEFAULT_CONFIGURATION: Omit<Configuration, 'updated_at' | 'updated_by'> = {
   thresholds: {
-    highQuality: 0.95,
-    lowQuality: 0.9,
+    highQuality: 0.98,
+    lowQuality: 0.51,
     support: 0.9,
-    duplicate: 0.9,
-    irrelevant: 0.85,
   },
+  allowHighQualityAutoSend: false,  // Require human review for meeting offers by default
   sdr: {
     name: 'Ryan',
+    lastName: 'Hemelt',
     email: 'ryan@vercel.com',
+    title: 'Development Representative',
+    avatar: 'https://vercel.com/api/www/avatar?u=rauchg&s=64',
   },
   supportTeam: {
     name: 'Support Team',
     email: 'support@vercel.com',
   },
+  // All email templates are stored as HTML
   emailTemplates: {
     highQuality: {
       subject: 'Hi from Vercel',
-      greeting: 'Hi {firstName},',
-      callToAction: '<a href="https://inbound-ten.vercel.app/sent-emails/{leadId}">Schedule a quick 15-minute call</a> to discuss how Vercel can help.',
-      signOff: 'Best,',
+      greeting: '<p>Hi {firstName},</p>',
+      callToAction: '<p>Let\'s schedule a quick 15 minute call to get started. <a href="{baseUrl}/sent-emails/{leadId}">Book a Meeting</a></p>',
+      signOff: '<p>Best,</p>',
     },
     lowQuality: {
       subject: 'Thanks for your interest in Vercel',
-      body: `<p>Hi there,</p>
+      body: `<p>Hi {firstName},</p>
 <p>Thanks for reaching out! We appreciate your interest in Vercel.</p>
 <p>Check out <a href="https://vercel.com/customers">vercel.com/customers</a> to see how companies are using our platform.</p>
-<p>Best,<br>The Vercel Team</p>`,
-      senderName: 'The Vercel Team',
+<p>Best,</p>
+<p>Vercel Sales</p>`,
+      senderName: 'Vercel Sales',
       senderEmail: 'sales@vercel.com',
     },
     support: {
-      subject: "We've Got Your Request",
-      greeting: 'Hi {firstName},',
-      callToAction: 'A member of our support team will follow up within one business day. For urgent issues, visit <a href="https://vercel.com/help">vercel.com/help</a> to access our documentation and live chat.',
-      signOff: 'Best,',
-      senderName: 'The Vercel Team',
-      senderEmail: 'support@vercel.com',
+      subject: 'Looking for support?',
+      greeting: '<p>Hi {firstName},</p>',
+      body: `<p>Thanks for reaching out to Vercel!</p>
+<p>It looks like you're looking for support. Our support team has been notified of your request and will reach out if they can help.</p>
+<p>Best,</p>
+<p>Vercel Sales</p>
+<hr style="border: none; border-top: 1px solid #333; margin: 16px 0;">
+<p style="color: #666;"><strong>Not looking for support?</strong><br>
+<a href="{baseUrl}/reroute/{leadId}">Tell us more</a></p>`,
     },
     duplicate: {
-      subject: "We've Got Your Request",
-      greeting: 'Hi {firstName},',
-      callToAction: "Since you're already part of the Vercel family, we've routed this directly to your account team. They'll follow up with you personally.",
-      signOff: 'Best,',
-      senderName: 'The Vercel Team',
-      senderEmail: 'sales@vercel.com',
+      subject: 'Looking for Account Support?',
+      greeting: '<p>Hi {firstName},</p>',
+      body: `<p>Thanks for reaching out to Vercel!</p>
+<p>Our records show {company} already has an assigned account team at Vercel. They'll be reaching out to you.</p>
+<p>Did we get that wrong? <a href="{baseUrl}/reroute/{leadId}">Give us more info</a></p>
+<p>Best,</p>
+<p>Vercel Sales</p>`,
     },
     supportInternal: {
       subject: 'Support Request from {firstName} at {company}',
-      body: 'A new support request has been received.\n\nFrom: {firstName} ({email})\nCompany: {company}\n\nMessage:\n{message}\n\nPlease respond to this request.',
+      body: `<p>A new support request has been received.</p>
+<p><strong>From:</strong> {firstName} ({email})<br><strong>Company:</strong> {company}</p>
+<p><strong>Message:</strong><br>{message}</p>
+<p>Please respond to this request.</p>
+<hr style="border: none; border-top: 1px solid #333; margin: 16px 0;">
+<p style="color: #666;"><strong>Not a support request?</strong><br>
+<a href="{baseUrl}/send-back/{leadId}?team=support">Send it back</a> · <a href="{baseUrl}/send-back/{leadId}?team=support&withNote=true">Send it back with a note</a> · <a href="{baseUrl}/self-service/{leadId}">Mark as self-service</a></p>`,
     },
     duplicateInternal: {
       subject: 'Existing Customer Inquiry: {firstName} at {company}',
-      body: 'An existing customer has reached out.\n\nFrom: {firstName} ({email})\nCompany: {company}\n\nMessage:\n{message}\n\nCRM Info: See lead details for account context.',
+      body: `<p>An existing customer has reached out.</p>
+<p><strong>From:</strong> {firstName} ({email})<br><strong>Company:</strong> {company}</p>
+<p><strong>Message:</strong><br>{message}</p>
+<p>CRM Info: See lead details for account context.</p>
+<hr style="border: none; border-top: 1px solid #333; margin: 16px 0;">
+<p style="color: #666;"><strong>Not a duplicate?</strong><br>
+<a href="{baseUrl}/send-back/{leadId}?team=account">Send it back</a> · <a href="{baseUrl}/send-back/{leadId}?team=account&withNote=true">Send it back with a note</a></p>`,
     },
   },
   prompts: {
-    classification: '',  // Will be populated from prompts.ts
-    emailHighQuality: '',
-    emailLowQuality: '',
-    emailGeneric: '',
+    classification: CLASSIFICATION_PROMPT,
+    emailHighQuality: EMAIL_GENERATION_PROMPT,
   },
   rollout: {
-    enabled: false,
-    percentage: 0,
+    percentage: 1,
   },
   email: {
     enabled: true,
     testMode: true,
     testEmail: 'reed.klaeser@gmail.com',
+  },
+  defaultCaseStudyId: 'notion',  // Notion is the default fallback case study
+  experimental: {
+    caseStudies: false,  // Case studies disabled by default
   },
 };
 
@@ -576,7 +665,7 @@ export interface ConfigurationMetrics {
     'low-quality': number;
     support: number;
     duplicate: number;
-    irrelevant: number;
+    'customer-reroute': number;
   };
   first_lead_at: Date | Timestamp | null;
   last_lead_at: Date | Timestamp | null;
@@ -602,9 +691,11 @@ export interface ClassificationResult {
   classification: Classification;
   confidence: number;
   reasoning: string;
+  existingCustomer: boolean;  // True if CRM lookup found existing customer relationship
 }
 
 export interface EmailGenerationResult {
   subject: string;
   body: string;
+  includedCaseStudies: string[]; // Company names mentioned in the email
 }

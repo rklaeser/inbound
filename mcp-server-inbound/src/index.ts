@@ -38,44 +38,109 @@ const LEADS_COLLECTION = 'leads';
 const CASE_STUDIES_COLLECTION = 'case_studies';
 const CONFIGURATIONS_COLLECTION = 'configurations';
 
-// Type definitions
-type LeadClassification = 'quality' | 'support' | 'low-value' | 'uncertain' | 'dead' | 'duplicate';
-type LeadStatus =
-  | 'researching'
-  | 'qualifying'
-  | 'generating'
-  | 'review'
-  | 'sent'
-  | 'rejected'
-  | 'error'
-  | 'forwarded'
-  | 'pending'
-  | 'classified'
-  | 'email_generated'
-  | 'in_review';
+// Type definitions - matches nextjs-app/lib/types.ts
 
+// Classification types - what kind of lead is this?
+type Classification =
+  | 'high-quality'      // Strong fit, gets personalized meeting offer email
+  | 'low-quality'       // Not a fit or spam/nonsense, gets generic sales email
+  | 'support'           // Existing customer needing help, forwarded to support
+  | 'duplicate'         // Already a customer in CRM, forwarded to account team
+  | 'customer-reroute'  // Customer disputed support/duplicate classification via escape hatch
+  | 'internal-reroute'; // Internal team (support/account) disputed classification
+
+// Status types - where is this lead in the workflow?
+type LeadStatus = 'classify' | 'review' | 'done';
+
+// Submission data - what the user submitted via the form
+interface Submission {
+  leadName: string;
+  email: string;
+  message: string;
+  company: string;
+}
+
+// Bot research output - AI analysis of the lead
+interface BotResearch {
+  timestamp: admin.firestore.Timestamp;
+  confidence: number;
+  classification: Classification;
+  reasoning: string;
+  existingCustomer: boolean;
+  crmRecordId?: string;
+  researchReport?: string;
+}
+
+// Bot generated email text
+interface BotText {
+  highQualityText: string | null;
+  lowQualityText: string | null;
+}
+
+// Bot rollout decision
+interface BotRollout {
+  rollOut: number;
+  useBot: boolean;
+}
+
+// Human edits to email
+interface HumanEdits {
+  note: string | null;
+  versions: Array<{
+    text: string;
+    timestamp: admin.firestore.Timestamp;
+  }>;
+}
+
+// Lead status information
+interface StatusInfo {
+  status: LeadStatus;
+  received_at: admin.firestore.Timestamp;
+  sent_at: admin.firestore.Timestamp | null;
+  sent_by: string | null;
+}
+
+// Classification entry (bot or human)
+interface ClassificationEntry {
+  author: 'human' | 'bot';
+  classification: Classification;
+  timestamp: admin.firestore.Timestamp;
+  needs_review?: boolean;
+  applied_threshold?: number;
+}
+
+// Matched case study from workflow research
+interface MatchedCaseStudy {
+  caseStudyId: string;
+  company: string;
+  industry: string;
+  url: string;
+  matchType: 'industry' | 'problem' | 'mentioned';
+  matchReason: string;
+  logoSvg?: string;
+  featuredText?: string;
+}
+
+// Main Lead interface - matches actual Firestore structure
 interface Lead {
   id: string;
-  name: string;
-  email: string;
-  company: string;
-  message: string;
-  classification: LeadClassification | null;
-  confidence_score: number | null;
-  reasoning: string | null;
-  research_report: string | null;
-  person_job_title: string | null;
-  person_linkedin_url: string | null;
-  generated_email_subject: string | null;
-  generated_email_body: string | null;
-  final_email_subject: string | null;
-  final_email_body: string | null;
-  edited: boolean;
-  status: LeadStatus;
-  created_at: admin.firestore.Timestamp;
-  classified_at: admin.firestore.Timestamp | null;
-  sent_at: admin.firestore.Timestamp | null;
-  updated_at?: admin.firestore.Timestamp;
+  submission: Submission;
+  bot_research: BotResearch | null;
+  bot_text: BotText | null;
+  bot_rollout: BotRollout | null;
+  human_edits: HumanEdits | null;
+  status: StatusInfo;
+  classifications: ClassificationEntry[];
+  metadata?: {
+    isTestLead: boolean;
+    testCase: string;
+    expectedClassifications: Classification[];
+  };
+  matched_case_studies?: MatchedCaseStudy[];
+  supportFeedback?: {
+    markedSelfService: boolean;
+    timestamp: admin.firestore.Timestamp;
+  };
 }
 
 // Case Study types
@@ -99,25 +164,14 @@ type VercelProduct =
   | 'Analytics'
   | 'Vercel AI SDK';
 
-interface CaseStudyMetric {
-  value: string;
-  description: string;
-}
-
 interface CaseStudy {
   id: string;
   company: string;
   industry: Industry;
-  description: string;
-  metrics?: CaseStudyMetric[];
   products: VercelProduct[];
   url: string;
-  quote?: string;
-  quotedPerson?: {
-    name: string;
-    title: string;
-  };
-  full_article_text?: string;
+  logoSvg: string;
+  featuredText: string;
   embedding?: number[];
   embedding_model?: string;
   embedding_generated_at?: admin.firestore.Timestamp;
@@ -131,17 +185,36 @@ function formatTimestamp(timestamp: admin.firestore.Timestamp | null | undefined
   return timestamp.toDate().toISOString();
 }
 
+// Helper function to get current classification from classifications array
+function getCurrentClassification(lead: any): Classification | null {
+  if (!lead.classifications || lead.classifications.length === 0) return null;
+  return lead.classifications[0].classification;
+}
+
+// Helper function to get current confidence from classifications array
+function getCurrentConfidence(lead: any): number | null {
+  if (!lead.bot_research) return null;
+  return lead.bot_research.confidence;
+}
+
 // Helper function to format lead for output
 function formatLead(lead: any, includeFullDetails: boolean = false): any {
+  const currentClassification = getCurrentClassification(lead);
+  const currentConfidence = getCurrentConfidence(lead);
+
   const baseFields = {
     id: lead.id,
-    status: lead.status,
-    classification: lead.classification,
-    confidence_score: lead.confidence_score,
-    name: lead.name,
-    email: lead.email,
-    company: lead.company,
-    created_at: formatTimestamp(lead.created_at),
+    // Submission data
+    name: lead.submission?.leadName || null,
+    email: lead.submission?.email || null,
+    company: lead.submission?.company || null,
+    // Status
+    status: lead.status?.status || null,
+    // Classification (from classifications array)
+    classification: currentClassification,
+    confidence: currentConfidence,
+    // Timestamps
+    received_at: formatTimestamp(lead.status?.received_at),
   };
 
   if (!includeFullDetails) {
@@ -150,19 +223,60 @@ function formatLead(lead: any, includeFullDetails: boolean = false): any {
 
   return {
     ...baseFields,
-    message: lead.message,
-    reasoning: lead.reasoning,
-    research_report: lead.research_report,
-    person_job_title: lead.person_job_title,
-    person_linkedin_url: lead.person_linkedin_url,
-    generated_email_subject: lead.generated_email_subject,
-    generated_email_body: lead.generated_email_body,
-    final_email_subject: lead.final_email_subject,
-    final_email_body: lead.final_email_body,
-    edited: lead.edited || false,
-    classified_at: formatTimestamp(lead.classified_at),
-    sent_at: formatTimestamp(lead.sent_at),
-    updated_at: formatTimestamp(lead.updated_at),
+    // Full submission
+    message: lead.submission?.message || null,
+    // Bot research
+    bot_research: lead.bot_research ? {
+      classification: lead.bot_research.classification,
+      confidence: lead.bot_research.confidence,
+      reasoning: lead.bot_research.reasoning,
+      existingCustomer: lead.bot_research.existingCustomer,
+      crmRecordId: lead.bot_research.crmRecordId || null,
+      researchReport: lead.bot_research.researchReport || null,
+      timestamp: formatTimestamp(lead.bot_research.timestamp),
+    } : null,
+    // Bot text
+    bot_text: lead.bot_text ? {
+      highQualityText: lead.bot_text.highQualityText,
+      lowQualityText: lead.bot_text.lowQualityText,
+    } : null,
+    // Bot rollout
+    bot_rollout: lead.bot_rollout ? {
+      rollOut: lead.bot_rollout.rollOut,
+      useBot: lead.bot_rollout.useBot,
+    } : null,
+    // Human edits
+    human_edits: lead.human_edits ? {
+      note: lead.human_edits.note,
+      versions: lead.human_edits.versions?.map((v: any) => ({
+        text: v.text,
+        timestamp: formatTimestamp(v.timestamp),
+      })) || [],
+    } : null,
+    // Full status info
+    status_info: {
+      status: lead.status?.status || null,
+      received_at: formatTimestamp(lead.status?.received_at),
+      sent_at: formatTimestamp(lead.status?.sent_at),
+      sent_by: lead.status?.sent_by || null,
+    },
+    // Classification history
+    classifications: lead.classifications?.map((c: any) => ({
+      author: c.author,
+      classification: c.classification,
+      timestamp: formatTimestamp(c.timestamp),
+      needs_review: c.needs_review || false,
+      applied_threshold: c.applied_threshold || null,
+    })) || [],
+    // Matched case studies
+    matched_case_studies: lead.matched_case_studies || [],
+    // Test metadata
+    metadata: lead.metadata || null,
+    // Support feedback
+    supportFeedback: lead.supportFeedback ? {
+      markedSelfService: lead.supportFeedback.markedSelfService,
+      timestamp: formatTimestamp(lead.supportFeedback.timestamp),
+    } : null,
   };
 }
 
@@ -170,34 +284,43 @@ function formatLead(lead: any, includeFullDetails: boolean = false): any {
 function determineWorkflowStatus(lead: any): {
   current_step: string;
   is_complete: boolean;
-  is_error: boolean;
   progress_percentage: number;
   next_action: string;
+  classification: Classification | null;
 } {
-  const status = lead.status;
+  const status = lead.status?.status;
+  const currentClassification = getCurrentClassification(lead);
 
   // Map status to workflow steps
+  // Status: 'classify' | 'review' | 'done'
   const statusMap: Record<string, { step: string; percentage: number; action: string }> = {
-    'pending': { step: 'Submitted', percentage: 10, action: 'Starting research' },
-    'researching': { step: 'Research', percentage: 25, action: 'AI gathering information' },
-    'qualifying': { step: 'Qualification', percentage: 50, action: 'AI classifying lead' },
-    'generating': { step: 'Email Generation', percentage: 75, action: 'AI drafting email' },
-    'review': { step: 'Human Review', percentage: 90, action: 'Awaiting human approval' },
-    'in_review': { step: 'Human Review', percentage: 90, action: 'Awaiting human approval' },
-    'sent': { step: 'Complete', percentage: 100, action: 'Email sent' },
-    'rejected': { step: 'Complete', percentage: 100, action: 'Lead rejected' },
-    'forwarded': { step: 'Complete', percentage: 100, action: 'Forwarded to AE' },
-    'error': { step: 'Error', percentage: 0, action: 'Workflow failed' },
+    'classify': { step: 'Classification', percentage: 50, action: 'Awaiting human classification' },
+    'review': { step: 'Review', percentage: 75, action: 'Awaiting human review of AI classification' },
+    'done': { step: 'Complete', percentage: 100, action: 'Action taken' },
   };
 
   const info = statusMap[status] || { step: 'Unknown', percentage: 0, action: 'Status unknown' };
 
+  // Enhance action description based on classification for done status
+  let nextAction = info.action;
+  if (status === 'done' && currentClassification) {
+    const actionMap: Record<Classification, string> = {
+      'high-quality': 'Meeting offer email sent',
+      'low-quality': 'Generic sales email sent',
+      'support': 'Forwarded to support team',
+      'duplicate': 'Forwarded to account team',
+      'customer-reroute': 'Customer reroute - needs SDR review',
+      'internal-reroute': 'Internal reroute - needs SDR review',
+    };
+    nextAction = actionMap[currentClassification] || info.action;
+  }
+
   return {
     current_step: info.step,
-    is_complete: ['sent', 'rejected', 'forwarded'].includes(status),
-    is_error: status === 'error',
+    is_complete: status === 'done',
     progress_percentage: info.percentage,
-    next_action: info.action,
+    next_action: nextAction,
+    classification: currentClassification,
   };
 }
 
@@ -207,12 +330,10 @@ function formatCaseStudy(caseStudy: any, includeEmbedding: boolean = false): any
     id: caseStudy.id,
     company: caseStudy.company,
     industry: caseStudy.industry,
-    description: caseStudy.description,
-    metrics: caseStudy.metrics || [],
     products: caseStudy.products || [],
     url: caseStudy.url,
-    quote: caseStudy.quote || null,
-    quotedPerson: caseStudy.quotedPerson || null,
+    logoSvg: caseStudy.logoSvg || null,
+    featuredText: caseStudy.featuredText || null,
     created_at: formatTimestamp(caseStudy.created_at),
     updated_at: formatTimestamp(caseStudy.updated_at),
   };
@@ -273,17 +394,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'list_leads',
-        description: 'List leads with optional filtering. Returns slim fields by default for token efficiency. Use full_details=true to get all fields.',
+        description: 'List leads with optional filtering. Returns slim fields by default for token efficiency. Use full_details=true to get all fields including bot_research, bot_text, human_edits, and classification history.',
         inputSchema: {
           type: 'object',
           properties: {
             status: {
               type: 'string',
-              description: 'Filter by status (researching, qualifying, generating, review, sent, rejected, error, forwarded)',
+              description: 'Filter by workflow status',
+              enum: ['classify', 'review', 'done'],
             },
             classification: {
               type: 'string',
-              description: 'Filter by classification (quality, support, low-value, uncertain, dead, duplicate)',
+              description: 'Filter by current classification type',
+              enum: ['high-quality', 'low-quality', 'support', 'duplicate', 'customer-reroute', 'internal-reroute'],
             },
             limit: {
               type: 'number',
@@ -297,9 +420,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             order_by: {
               type: 'string',
-              description: 'Field to order by (created_at, updated_at) (default: created_at)',
-              enum: ['created_at', 'updated_at'],
-              default: 'created_at',
+              description: 'Field to order by (default: received_at)',
+              enum: ['received_at', 'sent_at'],
+              default: 'received_at',
             },
             order_direction: {
               type: 'string',
@@ -309,7 +432,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             full_details: {
               type: 'boolean',
-              description: 'Include all fields (message, reasoning, emails, etc.) instead of just summary',
+              description: 'Include all fields (bot_research, bot_text, human_edits, classification history, matched_case_studies) instead of just summary',
               default: false,
             },
           },
@@ -549,7 +672,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           classification,
           limit = 20,
           offset = 0,
-          order_by = 'created_at',
+          order_by = 'received_at',
           order_direction = 'desc',
           full_details = false,
         } = args as {
@@ -568,37 +691,48 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Build query
         let query: admin.firestore.Query = db.collection(LEADS_COLLECTION);
 
-        // Apply filters
+        // Apply status filter (nested field: status.status)
         if (status) {
-          query = query.where('status', '==', status);
-        }
-        if (classification) {
-          query = query.where('classification', '==', classification);
+          query = query.where('status.status', '==', status);
         }
 
-        // Apply ordering
-        const orderField = order_by === 'updated_at' ? 'updated_at' : 'created_at';
+        // Apply ordering using nested field paths
+        const orderField = order_by === 'sent_at' ? 'status.sent_at' : 'status.received_at';
         const direction = order_direction === 'asc' ? 'asc' : 'desc';
         query = query.orderBy(orderField, direction);
 
-        // Apply pagination
-        query = query.offset(offset).limit(validLimit);
+        // For classification filtering, we need to filter client-side since
+        // Firestore can't directly query array[0].field
+        // Fetch more if classification filter is applied to account for filtering
+        const fetchLimit = classification ? validLimit * 3 : validLimit;
+        query = query.offset(offset).limit(fetchLimit);
 
         // Execute query
         const snapshot = await query.get();
 
-        const leads = snapshot.docs.map((doc) => {
+        let leads = snapshot.docs.map((doc) => {
           const data = doc.data();
-          return formatLead({ id: doc.id, ...data }, full_details);
+          return { id: doc.id, ...data };
         });
 
+        // Apply classification filter client-side if specified
+        if (classification) {
+          leads = leads.filter((lead: any) => {
+            const currentClass = getCurrentClassification(lead);
+            return currentClass === classification;
+          });
+          // Trim to requested limit after filtering
+          leads = leads.slice(0, validLimit);
+        }
+
+        // Format leads for output
+        const formattedLeads = leads.map((lead: any) => formatLead(lead, full_details));
+
         // Get total count (for pagination info)
+        // Note: For classification filter, count is approximate since we filter client-side
         let totalQuery: admin.firestore.Query = db.collection(LEADS_COLLECTION);
         if (status) {
-          totalQuery = totalQuery.where('status', '==', status);
-        }
-        if (classification) {
-          totalQuery = totalQuery.where('classification', '==', classification);
+          totalQuery = totalQuery.where('status.status', '==', status);
         }
         const totalSnapshot = await totalQuery.count().get();
         const total = totalSnapshot.data().count;
@@ -608,12 +742,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify({
-                leads,
+                leads: formattedLeads,
                 pagination: {
                   total,
                   limit: validLimit,
                   offset,
                   has_more: offset + validLimit < total,
+                  note: classification ? 'Total count may not reflect classification filter (filtered client-side)' : undefined,
                 },
                 filters_applied: {
                   status: status || null,
@@ -666,24 +801,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const data = doc.data();
         const workflowStatus = determineWorkflowStatus(data);
+        const currentClassification = getCurrentClassification(data);
 
         const result = {
           lead_id: id,
-          status: data!.status,
+          status: data!.status?.status || null,
           workflow: workflowStatus,
           timestamps: {
-            created_at: formatTimestamp(data!.created_at),
-            classified_at: formatTimestamp(data!.classified_at),
-            sent_at: formatTimestamp(data!.sent_at),
-            updated_at: formatTimestamp(data!.updated_at),
+            received_at: formatTimestamp(data!.status?.received_at),
+            sent_at: formatTimestamp(data!.status?.sent_at),
+            bot_research_at: formatTimestamp(data!.bot_research?.timestamp),
           },
           classification: {
-            type: data!.classification,
-            confidence: data!.confidence_score,
-            reasoning: data!.reasoning,
+            current: currentClassification,
+            confidence: data!.bot_research?.confidence || null,
+            reasoning: data!.bot_research?.reasoning || null,
+            existingCustomer: data!.bot_research?.existingCustomer || false,
+            history_count: data!.classifications?.length || 0,
           },
-          email_generated: !!(data!.generated_email_subject || data!.generated_email_body),
-          email_edited: data!.edited || false,
+          email_generated: !!(data!.bot_text?.highQualityText || data!.bot_text?.lowQualityText),
+          email_edited: !!(data!.human_edits?.versions?.length > 0),
+          sent_by: data!.status?.sent_by || null,
         };
 
         return {
@@ -820,14 +958,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             return { id: doc.id, ...data };
           })
           .filter((cs: any) => {
-            // Search in company, description, and products
+            // Search in company, featuredText, and products
             const companyMatch = cs.company?.toLowerCase().includes(searchTerm);
-            const descriptionMatch = cs.description?.toLowerCase().includes(searchTerm);
+            const featuredTextMatch = cs.featuredText?.toLowerCase().includes(searchTerm);
             const productsMatch = cs.products?.some((p: string) =>
               p.toLowerCase().includes(searchTerm)
             );
             const industryMatch = cs.industry?.toLowerCase().includes(searchTerm);
-            return companyMatch || descriptionMatch || productsMatch || industryMatch;
+            return companyMatch || featuredTextMatch || productsMatch || industryMatch;
           })
           .slice(0, validLimit)
           .map((cs) => formatCaseStudy(cs, false));

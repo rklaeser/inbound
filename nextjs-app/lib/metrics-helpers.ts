@@ -22,11 +22,8 @@ export async function calculateConfigurationMetrics(
   // Calculate counts
   const totalLeads = leads.length;
 
-  // Leads that had emails generated (have bot_text or human_edits)
-  const leadsWithEmails = leads.filter(
-    (lead) =>
-      (lead.bot_text?.highQualityText || lead.bot_text?.lowQualityText) || lead.human_edits?.versions[0]?.text
-  );
+  // Leads that have email content
+  const leadsWithEmails = leads.filter((lead) => lead.email?.text);
   const emailsGenerated = leadsWithEmails.length;
 
   // Leads where email was sent (status = done and terminal state is sent)
@@ -37,16 +34,28 @@ export async function calculateConfigurationMetrics(
   });
   const emailsSent = sentLeads.length;
 
-  // Leads that were rejected (terminal state = dead)
-  const rejectedLeads = leads.filter((lead) => getTerminalState(lead) === "dead");
-  const emailsRejected = rejectedLeads.length;
+  // Leads that were rejected (no longer used since we don't have 'dead' terminal state)
+  const emailsRejected = 0;
 
   // Calculate approval rate: (sent / generated) * 100
   const approvalRate =
     emailsGenerated > 0 ? (emailsSent / emailsGenerated) * 100 : 0;
 
   // Calculate edit rate: (edited / sent) * 100
-  const editedEmails = sentLeads.filter((lead) => lead.human_edits !== null);
+  // An email is edited if editedAt > createdAt or if lastEditedBy is set
+  const editedEmails = sentLeads.filter((lead) => {
+    if (!lead.email) return false;
+    // Check if lastEditedBy is set (human edited)
+    if (lead.email.lastEditedBy) return true;
+    // Or compare timestamps
+    const createdAt = (lead.email.createdAt as any).toDate
+      ? (lead.email.createdAt as any).toDate().getTime()
+      : (lead.email.createdAt as Date).getTime();
+    const editedAt = (lead.email.editedAt as any).toDate
+      ? (lead.email.editedAt as any).toDate().getTime()
+      : (lead.email.editedAt as Date).getTime();
+    return editedAt > createdAt;
+  });
   const editRate = emailsSent > 0 ? (editedEmails.length / emailsSent) * 100 : 0;
 
   // Calculate average response time (created_at to sent_at)
@@ -109,7 +118,7 @@ export async function calculateConfigurationMetrics(
     "low-quality": leads.filter((l) => getCurrentClassification(l) === "low-quality").length,
     support: leads.filter((l) => getCurrentClassification(l) === "support").length,
     duplicate: leads.filter((l) => getCurrentClassification(l) === "duplicate").length,
-    irrelevant: leads.filter((l) => getCurrentClassification(l) === "irrelevant").length,
+    "customer-reroute": leads.filter((l) => getCurrentClassification(l) === "customer-reroute").length,
   };
 
   // Get time range

@@ -77,15 +77,13 @@ export async function updateConfiguration(
  * Initialize default configuration (for new setups)
  */
 export async function initializeConfiguration(): Promise<void> {
-  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT, GENERIC_EMAIL_PROMPT } = await import('./prompts');
+  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } = await import('./prompts');
 
   const defaultConfig: Configuration = {
     ...DEFAULT_CONFIGURATION,
     prompts: {
       classification: CLASSIFICATION_PROMPT,
       emailHighQuality: EMAIL_GENERATION_PROMPT,
-      emailLowQuality: '', // No longer used - low-quality leads use static template
-      emailGeneric: GENERIC_EMAIL_PROMPT,
     },
     updated_at: new Date(),
     updated_by: 'system',
@@ -150,9 +148,15 @@ export function getThresholdForClassification(
     case 'support':
       return config.thresholds.support;
     case 'duplicate':
-      return config.thresholds.duplicate;
-    case 'irrelevant':
-      return config.thresholds.irrelevant;
+      // Duplicates are handled deterministically by CRM check before this is called
+      // Return 0 to always pass threshold if this is somehow reached
+      return 0;
+    case 'customer-reroute':
+      // Customer reroutes don't have thresholds - they're manually triggered
+      return 0;
+    case 'internal-reroute':
+      // Internal reroutes don't have thresholds - they're manually triggered by internal teams
+      return 0;
   }
 }
 
@@ -169,12 +173,7 @@ export function shouldAutoSend(
     return false;
   }
 
-  // Must have rollout enabled
-  if (!rollout.enabled) {
-    return false;
-  }
-
-  // Random roll against percentage
+  // Random roll against percentage (0 = disabled, 1 = 100%)
   return Math.random() < rollout.percentage;
 }
 

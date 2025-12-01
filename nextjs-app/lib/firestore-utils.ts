@@ -21,17 +21,21 @@ export function serializeFirestoreData<T>(data: any): T {
     return data;
   }
 
-  const serialized: any = { ...data };
+  // Check if this is a Firebase Admin SDK Timestamp
+  // Format: { _seconds: number, _nanoseconds: number }
+  if ('_seconds' in data && '_nanoseconds' in data) {
+    return new Date(data._seconds * 1000).toISOString() as T;
+  }
 
-  // Iterate over top-level properties
-  for (const key in serialized) {
-    const value = serialized[key];
+  // Handle arrays
+  if (Array.isArray(data)) {
+    return data.map(item => serializeFirestoreData(item)) as T;
+  }
 
-    // Check if this is a Firebase Admin SDK Timestamp
-    // Format: { _seconds: number, _nanoseconds: number }
-    if (value && typeof value === 'object' && '_seconds' in value) {
-      serialized[key] = new Date(value._seconds * 1000).toISOString();
-    }
+  // Handle objects - recursively serialize all properties
+  const serialized: any = {};
+  for (const key in data) {
+    serialized[key] = serializeFirestoreData(data[key]);
   }
 
   return serialized;

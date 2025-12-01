@@ -47,6 +47,7 @@ export async function GET(
 /**
  * PATCH /api/case-studies/[id]
  * Updates a case study
+ * Supports partial updates (e.g., just logoSvg)
  */
 export async function PATCH(
   request: NextRequest,
@@ -56,17 +57,24 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    // Validate the updates
-    const validation = validateCaseStudy(body);
-    if (!validation.valid) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          errors: validation.errors,
-        },
-        { status: 400 }
-      );
+    // Check if this is a logoSvg-only or featuredText-only update (skip validation for these)
+    const isMetadataOnlyUpdate =
+      (Object.keys(body).length === 1 && 'logoSvg' in body) ||
+      (Object.keys(body).length === 1 && 'featuredText' in body);
+
+    if (!isMetadataOnlyUpdate) {
+      // Validate the updates for full case study updates
+      const validation = validateCaseStudy(body);
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Validation failed',
+            errors: validation.errors,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     await updateCaseStudy(id, body);

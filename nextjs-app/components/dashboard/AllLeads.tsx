@@ -11,7 +11,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { LeadBadge } from '@/components/shared/LeadBadge';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { formatCompactTime, calculateTTR } from '@/lib/date-utils';
 import Image from 'next/image';
 import {
@@ -23,8 +22,8 @@ import {
 import { Button } from '@/components/ui/button';
 import type { Lead, Classification } from '@/lib/types';
 import { getCurrentClassification, STATUS_FILTER_OPTIONS, TYPE_FILTER_OPTIONS } from '@/lib/types';
-import type { DateRange } from 'react-day-picker';
-import { CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronDown, Settings, HelpCircle } from 'lucide-react';
+import Link from 'next/link';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
 
 interface AllLeadsProps {
@@ -39,16 +38,12 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
   const [loading, setLoading] = useState(false);
 
   // Filter state
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(
     new Set(STATUS_FILTER_OPTIONS.map(s => s.key))
   );
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(
     new Set(TYPE_FILTER_OPTIONS.map(t => t.key))
   );
-
-  // Demo toggle for visual treatment comparison
-  const [demoOption, setDemoOption] = useState<'A' | 'C'>('A');
 
   // Helper functions for filter multi-select
   const toggleStatus = (key: string) => {
@@ -86,20 +81,6 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
   // Filter leads based on selected filters
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
-      // Date range filter
-      if (dateRange?.from || dateRange?.to) {
-        const leadDate = lead.status.received_at instanceof Date
-          ? lead.status.received_at
-          : new Date((lead.status.received_at as any).toDate?.() || lead.status.received_at);
-
-        if (dateRange.from && leadDate < dateRange.from) return false;
-        if (dateRange.to) {
-          const endOfDay = new Date(dateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          if (leadDate > endOfDay) return false;
-        }
-      }
-
       // Status filter - check lead.status.status
       if (!selectedStatuses.has(lead.status.status)) {
         return false;
@@ -113,7 +94,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
 
       return true;
     });
-  }, [leads, dateRange, selectedStatuses, selectedTypes]);
+  }, [leads, selectedStatuses, selectedTypes]);
 
   useEffect(() => {
     // Set up real-time listener AFTER initial render
@@ -141,8 +122,17 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
             }
           });
 
-          // Convert back to array and sort by received_at desc
+          // Convert back to array and sort: review leads first, then done leads, each by received_at desc
           return Array.from(leadMap.values()).sort((a, b) => {
+            // First sort by status: 'classify' → 'review' → 'done'
+            const statusOrder: Record<string, number> = { classify: 0, review: 1, done: 2 };
+            const aStatusOrder = statusOrder[a.status.status] ?? 3;
+            const bStatusOrder = statusOrder[b.status.status] ?? 3;
+            if (aStatusOrder !== bStatusOrder) {
+              return aStatusOrder - bStatusOrder;
+            }
+
+            // Within same status, sort by received_at desc (newest first)
             const aTime = a.status.received_at
               ? (a.status.received_at instanceof Date
                 ? a.status.received_at.getTime()
@@ -188,26 +178,25 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
     <div className="space-y-4">
       {/* Filter Bar */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Date Range Picker */}
-        <DateRangePicker date={dateRange} onDateChange={setDateRange} />
-
         {/* Status Filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  {Array.from(selectedStatuses)
-                    .map((key) => {
-                      const option = STATUS_FILTER_OPTIONS.find(o => o.key === key);
-                      return (
-                        <div
-                          key={key}
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: option?.color }}
-                        />
-                      );
-                    })}
+                <div className="flex -space-x-0.5">
+                  {STATUS_FILTER_OPTIONS.map((option) => {
+                    const isSelected = selectedStatuses.has(option.key);
+                    return (
+                      <div
+                        key={option.key}
+                        className="h-2 w-2 rounded-full ring-1 ring-background"
+                        style={{
+                          backgroundColor: isSelected ? option.color : 'transparent',
+                          boxShadow: isSelected ? undefined : 'inset 0 0 0 1px rgba(255,255,255,0.3)',
+                        }}
+                      />
+                    );
+                  })}
                 </div>
                 <span className="text-sm font-medium">
                   {statusDisplayText}
@@ -223,12 +212,22 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 checked={selectedStatuses.has(option.key)}
                 onCheckedChange={() => toggleStatus(option.key)}
                 onSelect={(e) => e.preventDefault()}
+                className="group pr-1"
               >
                 <div
                   className="h-2 w-2 rounded-full mr-2 shrink-0"
                   style={{ backgroundColor: option.color }}
                 />
-                {option.label}
+                <span className="flex-1">{option.label}</span>
+                <button
+                  className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:!bg-accent px-1.5 py-0.5 rounded transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedStatuses(new Set([option.key]));
+                  }}
+                >
+                  Only
+                </button>
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -239,19 +238,20 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  {Array.from(selectedTypes)
-                    .slice(0, 3)
-                    .map((key) => {
-                      const option = TYPE_FILTER_OPTIONS.find(o => o.key === key);
-                      return (
-                        <div
-                          key={key}
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: option?.color }}
-                        />
-                      );
-                    })}
+                <div className="flex -space-x-0.5">
+                  {TYPE_FILTER_OPTIONS.map((option) => {
+                    const isSelected = selectedTypes.has(option.key);
+                    return (
+                      <div
+                        key={option.key}
+                        className="h-2 w-2 rounded-full ring-1 ring-background"
+                        style={{
+                          backgroundColor: isSelected ? option.color : 'transparent',
+                          boxShadow: isSelected ? undefined : 'inset 0 0 0 1px rgba(255,255,255,0.3)',
+                        }}
+                      />
+                    );
+                  })}
                 </div>
                 <span className="text-sm font-medium">
                   {typeDisplayText}
@@ -267,37 +267,26 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 checked={selectedTypes.has(option.key)}
                 onCheckedChange={() => toggleType(option.key)}
                 onSelect={(e) => e.preventDefault()}
+                className="group pr-1"
               >
                 <div
                   className="h-2 w-2 rounded-full mr-2 shrink-0"
                   style={{ backgroundColor: option.color }}
                 />
-                {option.label}
+                <span className="flex-1">{option.label}</span>
+                <button
+                  className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:!bg-accent px-1.5 py-0.5 rounded transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTypes(new Set([option.key]));
+                  }}
+                >
+                  Only
+                </button>
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* Demo Toggle - Visual Treatment Comparison */}
-        <div className="ml-auto flex items-center gap-2 px-3 py-2 rounded-md bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
-          <span className="text-xs text-muted-foreground">Demo:</span>
-          <Button
-            variant={demoOption === 'A' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => setDemoOption('A')}
-          >
-            Option A
-          </Button>
-          <Button
-            variant={demoOption === 'C' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => setDemoOption('C')}
-          >
-            Option C
-          </Button>
-        </div>
       </div>
 
       {/* Table */}
@@ -322,10 +311,8 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 // Check if lead is completed (terminal state)
                 const isCompleted = lead.status.status === 'done';
 
-                // Apply visual treatment based on demo option
-                const rowClassName = demoOption === 'A'
-                  ? `cursor-pointer hover:bg-[#000000] ${isCompleted ? 'opacity-50' : ''}`
-                  : `cursor-pointer ${isCompleted ? 'bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.03)]' : 'hover:bg-[#000000]'}`;
+                // Completed rows are dimmed
+                const rowClassName = `cursor-pointer hover:bg-[#000000] ${isCompleted ? 'opacity-50' : ''}`;
 
                 return (
                   <TableRow
@@ -385,6 +372,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                         }
                         const sentBy = lead.status.sent_by;
                         const isBot = sentBy === 'bot';
+                        const isSystem = sentBy === 'system';
                         return (
                           <span className="font-mono text-xs flex items-center gap-1.5">
                             <span style={{ color: '#fafafa' }}>{ttr}</span>
@@ -393,6 +381,11 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                               <>
                                 <span>🤖</span>
                                 <span style={{ color: '#fafafa' }}>Bot</span>
+                              </>
+                            ) : isSystem ? (
+                              <>
+                                <Settings className="h-3.5 w-3.5" style={{ color: '#a1a1a1' }} />
+                                <span style={{ color: '#fafafa' }}>System</span>
                               </>
                             ) : sentBy ? (
                               <>
@@ -411,6 +404,22 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                           </span>
                         );
                       })()}
+                    </TableCell>
+
+                    {/* Why icon - link to timeline */}
+                    <TableCell className="w-8 pr-4">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center justify-center"
+                      >
+                        <Link
+                          href={`/dashboard/leads/${lead.id}#timeline`}
+                          className="p-2 -m-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="View decision timeline"
+                        >
+                          <HelpCircle className="h-4 w-4" />
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

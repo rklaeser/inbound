@@ -7,13 +7,12 @@ interface AttributionProps {
 }
 
 /**
- * Displays Vercel-style attribution: "Nov 13 by Ryan" or "Nov 13 by Lead Agent"
+ * Displays Vercel-style attribution: "Nov 13 by Ryan" or just "Nov 13" if no actor
  */
 export function Attribution({ date, by }: AttributionProps) {
   if (!date) return null;
 
   const formattedDate = formatHumanDate(date);
-  const actor = by || 'Lead Agent';
 
   return (
     <span
@@ -24,8 +23,12 @@ export function Attribution({ date, by }: AttributionProps) {
       }}
     >
       <span style={{ color: '#fafafa' }}>{formattedDate}</span>
-      <span> by </span>
-      <span style={{ color: '#fafafa' }}>{actor}</span>
+      {by && (
+        <>
+          <span> by </span>
+          <span style={{ color: '#fafafa' }}>{by}</span>
+        </>
+      )}
     </span>
   );
 }

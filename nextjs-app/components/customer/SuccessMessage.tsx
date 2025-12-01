@@ -1,80 +1,71 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { findRelevantCaseStudiesWithReason } from '@/lib/case-study-matcher';
-import type { CaseStudy } from '@/lib/case-studies';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firestore';
+import type { MatchedCaseStudy } from '@/lib/types';
+
+interface SentEmail {
+  subject: string;
+  html: string;
+}
 
 interface SuccessMessageProps {
-  onReset?: () => void;
-  leadData?: {
-    company: string;
-    message: string;
-  };
+  leadId?: string;
   devModeEnabled?: boolean;
 }
 
-export default function SuccessMessage({ onReset, leadData, devModeEnabled }: SuccessMessageProps) {
-  const [relevantCaseStudy, setRelevantCaseStudy] = useState<CaseStudy | null>(null);
-  const [matchReason, setMatchReason] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
+export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessageProps) {
+  const [caseStudies, setCaseStudies] = useState<MatchedCaseStudy[]>([]);
+  const [sentEmail, setSentEmail] = useState<SentEmail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchRelevantCaseStudy() {
-      if (!leadData) {
-        setRelevantCaseStudy(null);
-        setMatchReason('');
-        return;
-      }
-
-      setIsLoading(true);
-
-      try {
-        // Call server-side API for vector-based matching
-        const response = await fetch('/api/case-studies/match', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            company: leadData.company,
-            message: leadData.message,
-            maxResults: 1,
-          }),
-        });
-
-        const result = await response.json();
-
-        if (result.success && result.data?.[0]) {
-          setRelevantCaseStudy(result.data[0].caseStudy);
-          setMatchReason(result.data[0].matchReason);
-        } else if (result.success && result.data?.length === 0) {
-          // No matches above threshold - don't show a case study
-          console.log('No case studies matched above similarity threshold');
-          setRelevantCaseStudy(null);
-          setMatchReason('No strong match found');
-        } else {
-          throw new Error(result.error || 'Failed to fetch case studies');
-        }
-      } catch (error) {
-        console.error('Vector matching failed:', error);
-        // On error, don't show a case study
-        setRelevantCaseStudy(null);
-        setMatchReason('');
-      } finally {
-        setIsLoading(false);
-      }
+    if (!leadId) {
+      setIsLoading(false);
+      return;
     }
 
-    fetchRelevantCaseStudy();
-  }, [leadData]);
+    // Subscribe to lead document changes using Firestore onSnapshot
+    const unsubscribe = onSnapshot(
+      doc(db, 'leads', leadId),
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          // Update case studies when available
+          if (data?.matched_case_studies && data.matched_case_studies.length > 0) {
+            setCaseStudies(data.matched_case_studies);
+            setIsLoading(false);
+          }
+          // Update sent email when available
+          if (data?.sent_email) {
+            setSentEmail(data.sent_email);
+          }
+        }
+      },
+      (err) => {
+        console.error('Error listening to lead:', err);
+        setError('Unable to load case studies');
+        setIsLoading(false);
+      }
+    );
+
+    // Set a timeout to stop loading after 30 seconds (fallback)
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+      }
+    }, 30000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, [leadId]);
+
   return (
-    <div
-      className="rounded-md border p-8 text-center"
-      style={{
-        background: 'var(--background-secondary)',
-        borderColor: 'var(--border)',
-      }}
-    >
+    <div className="text-center">
       {/* Success Icon */}
       <div
         className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
@@ -104,252 +95,204 @@ export default function SuccessMessage({ onReset, leadData, devModeEnabled }: Su
         className="text-2xl font-semibold mb-2"
         style={{ color: 'var(--text-primary)' }}
       >
-        Thank You!
+        We'll be in touch!
       </h2>
 
-      {/* Success Message */}
+      {/* Success Message with Link */}
       <p
         className="text-base mb-6"
         style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}
       >
-        Your inquiry has been submitted successfully. Our team will review it and
-        get back to you shortly with a personalized response.
+        In the meantime,{' '}
+        <a
+          href="https://vercel.com/customers"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="transition-opacity hover:opacity-70"
+          style={{ color: 'var(--blue)' }}
+        >
+          see how industry leading companies use Vercel.
+        </a>
       </p>
 
-      {/* Case Study Section - Loading State */}
-      {isLoading && leadData && (
+      {/* Case Studies Grid */}
+      {caseStudies.length > 0 && (
         <div
-          className="mt-8 mb-6 p-6 rounded-md border text-center"
+          className="mt-8 mb-6 grid gap-4"
           style={{
-            background: 'var(--background-primary)',
-            borderColor: 'var(--border)',
+            gridTemplateColumns: caseStudies.length > 1 ? 'repeat(2, 1fr)' : '1fr',
           }}
         >
-          <div className="flex items-center justify-center gap-2">
-            <svg
-              className="animate-spin h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                style={{ stroke: 'var(--text-secondary)' }}
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                style={{ fill: 'var(--text-primary)' }}
-              />
-            </svg>
-            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Finding relevant customer story...
-            </span>
-          </div>
+          {caseStudies.map((caseStudy, index) => (
+            <CaseStudyCard
+              key={caseStudy.caseStudyId || index}
+              caseStudy={caseStudy}
+              devModeEnabled={devModeEnabled}
+            />
+          ))}
         </div>
       )}
 
-      {/* Case Study Section */}
-      {!isLoading && relevantCaseStudy && (
+      {/* Book a Meeting Card */}
+      {sentEmail && leadId && (
         <div
-          className="mt-8 mb-6 p-6 rounded-md border text-left"
+          className="mt-8 mb-6 p-6 rounded-md border relative"
           style={{
             background: 'var(--background-primary)',
             borderColor: 'var(--border)',
           }}
         >
-          <div className="mb-3">
-            <p
-              className="text-xs font-medium uppercase tracking-wider mb-2"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              Customer Success Story
-            </p>
-            <h3
-              className="text-lg font-semibold"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              {relevantCaseStudy.company}
-            </h3>
-            <p
-              className="text-sm mt-1"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {relevantCaseStudy.industry}
-            </p>
-          </div>
-
-          {/* Dev Mode: Match Reason */}
-          {devModeEnabled && matchReason && (
-            <div
-              className="mb-4 p-3 rounded text-xs font-mono"
-              style={{
-                background: 'rgba(0, 112, 243, 0.1)',
-                borderLeft: '2px solid var(--blue)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <div style={{ color: 'var(--blue)', fontWeight: 600, marginBottom: '4px' }}>
-                🔍 Chosen because:
-              </div>
-              {matchReason}
-            </div>
-          )}
-
-          {/* Metrics */}
-          {relevantCaseStudy.metrics && relevantCaseStudy.metrics.length > 0 && (
-            <ul className="space-y-2 mb-4">
-              {relevantCaseStudy.metrics.slice(0, 3).map((metric, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-2 text-sm"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  <span style={{ color: 'var(--green)', flexShrink: 0 }}>✓</span>
-                  <span>
-                    <strong style={{ color: 'var(--text-primary)' }}>
-                      {metric.value}
-                    </strong>{' '}
-                    {metric.description}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Quote */}
-          {relevantCaseStudy.quote && (
-            <blockquote
-              className="text-sm italic mb-4 pl-4 border-l-2"
-              style={{
-                color: 'var(--text-secondary)',
-                borderColor: 'var(--border)',
-              }}
-            >
-              "{relevantCaseStudy.quote}"
-              {relevantCaseStudy.quotedPerson && (
-                <footer className="mt-2 not-italic text-xs">
-                  — {relevantCaseStudy.quotedPerson.name},{' '}
-                  {relevantCaseStudy.quotedPerson.title}
-                </footer>
-              )}
-            </blockquote>
-          )}
-
-          {/* Read More Link */}
-          <a
-            href={relevantCaseStudy.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-70"
-            style={{ color: 'var(--blue)' }}
-          >
-            Read the full story
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
-              />
-            </svg>
-          </a>
-        </div>
-      )}
-
-      {/* Generic Customer Stories Link - Show when no relevant case study found */}
-      {!isLoading && !relevantCaseStudy && leadData && (
-        <div
-          className="mt-8 mb-6 p-6 rounded-md border text-center"
-          style={{
-            background: 'var(--background-primary)',
-            borderColor: 'var(--border)',
-          }}
-        >
-          {devModeEnabled && matchReason && (
-            <div
-              className="mb-4 p-3 rounded text-xs font-mono text-left"
-              style={{
-                background: 'rgba(255, 152, 0, 0.1)',
-                borderLeft: '2px solid var(--amber)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <div style={{ color: 'var(--amber)', fontWeight: 600, marginBottom: '4px' }}>
-                ⚠️ No targeted match:
-              </div>
-              {matchReason}
-            </div>
-          )}
-
+          {/* Just now label - top left corner */}
           <p
-            className="text-sm mb-4"
-            style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}
+            className="text-xs font-medium absolute top-1 left-3"
+            style={{ color: 'var(--green)' }}
           >
-            Explore how companies across industries are building with Vercel
+            Just now
           </p>
 
-          <a
-            href="https://vercel.com/customers"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm font-medium transition-opacity hover:opacity-70"
-            style={{ color: 'var(--blue)' }}
-          >
-            View all customer stories
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center justify-between gap-4">
+            {/* Book Meeting Button - Left */}
+            <a
+              href={`/sent-emails/${leadId}`}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium transition-opacity hover:opacity-90"
+              style={{
+                background: 'var(--foreground)',
+                color: 'var(--background)',
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              Book a Meeting
+            </a>
+
+            {/* SDR Profile - Right */}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p
+                  className="text-base font-medium"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  Ryan Vercel
+                </p>
+                <p
+                  className="text-sm"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Development Manager
+                </p>
+              </div>
+              <img
+                src="/profpic.jpeg"
+                alt="Ryan"
+                className="w-12 h-12 rounded-full object-cover"
               />
-            </svg>
-          </a>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Optional Reset Button */}
-      {onReset && (
-        <button
-          onClick={onReset}
-          className="px-6 py-2 rounded-md border transition-all duration-150 hover:border-opacity-100"
+      {/* Error State */}
+      {error && (
+        <div
+          className="mt-8 mb-6 p-4 rounded-md border text-center"
           style={{
-            background: 'transparent',
+            background: 'var(--background-primary)',
             borderColor: 'var(--border)',
-            color: 'var(--text-secondary)',
-            fontSize: '14px',
           }}
         >
-          Submit Another Inquiry
-        </button>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {error}
+          </p>
+        </div>
       )}
 
-      {/* Info Text */}
-      <p
-        className="text-xs mt-6"
-        style={{ color: 'var(--text-secondary)' }}
+    </div>
+  );
+}
+
+/**
+ * Individual Case Study Card Component - Vercel customers page style
+ */
+function CaseStudyCard({
+  caseStudy,
+  devModeEnabled,
+}: {
+  caseStudy: MatchedCaseStudy;
+  devModeEnabled?: boolean;
+}) {
+  return (
+    <div
+      className="p-5 rounded-md border text-left flex flex-col"
+      style={{
+        background: 'var(--background-primary)',
+        borderColor: 'var(--border)',
+      }}
+    >
+      {/* Logo at top */}
+      <div className="mb-4 h-8 flex items-center">
+        {caseStudy.logoSvg ? (
+          <img
+            src={`data:image/svg+xml;base64,${btoa(caseStudy.logoSvg)}`}
+            alt={`${caseStudy.company} logo`}
+            className="h-8 max-w-[140px] object-contain"
+            style={{ filter: 'brightness(0) invert(1)' }}
+          />
+        ) : (
+          <span className="text-[#888] text-lg font-semibold">{caseStudy.company}</span>
+        )}
+      </div>
+
+      {/* Dev Mode: Match Reason */}
+      {devModeEnabled && caseStudy.matchReason && (
+        <div
+          className="mb-3 p-2 rounded text-xs font-mono"
+          style={{
+            background: 'rgba(0, 112, 243, 0.1)',
+            borderLeft: '2px solid var(--blue)',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {caseStudy.matchReason}
+        </div>
+      )}
+
+      {/* Featured Text */}
+      {caseStudy.featuredText && (
+        <p
+          className="text-base mb-4"
+          style={{ color: '#888', lineHeight: '1.6' }}
+        >
+          {caseStudy.featuredText}
+        </p>
+      )}
+
+      {/* Spacer to push Read story to bottom */}
+      <div className="flex-grow" />
+
+      {/* Read the full story link */}
+      <a
+        href={caseStudy.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-sm transition-colors hover:text-[#a1a1a1] mt-auto"
+        style={{ color: '#888' }}
       >
-        <span className="font-mono">
-          Response time: 24-48 hours
-        </span>
-      </p>
+        Read the full story
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="ml-1">
+          <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </a>
     </div>
   );
 }

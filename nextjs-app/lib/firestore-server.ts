@@ -20,7 +20,7 @@ export async function getAllCaseStudiesServer(): Promise<CaseStudy[]> {
   const caseStudiesRef = adminDb.collection('case_studies');
   const snapshot = await caseStudiesRef
     .orderBy('company', 'asc')
-    .select('company', 'industry', 'description', 'metrics', 'products', 'url', 'quote', 'quotedPerson')
+    .select('company', 'industry', 'products', 'url', 'logoSvg', 'featuredText')
     .get();
 
   return snapshot.docs.map(doc =>
@@ -34,17 +34,32 @@ export async function getAllCaseStudiesServer(): Promise<CaseStudy[]> {
 /**
  * Get all leads (server-side)
  * Can be cached with Next.js revalidate
+ * Sorted: review leads first, then done leads, each by received_at desc
  */
 export async function getAllLeadsServer(): Promise<Lead[]> {
   const leadsRef = adminDb.collection('leads');
-  const snapshot = await leadsRef.orderBy('created_at', 'desc').get();
+  const snapshot = await leadsRef.orderBy('status.received_at', 'desc').get();
 
-  return snapshot.docs.map(doc =>
+  const leads = snapshot.docs.map(doc =>
     serializeFirestoreData<Lead>({
       id: doc.id,
       ...doc.data(),
     })
   );
+
+  // Sort: review leads first, then done leads, each by received_at desc
+  const statusOrder: Record<string, number> = { review: 0, done: 1 };
+  return leads.sort((a, b) => {
+    const aStatusOrder = statusOrder[a.status?.status] ?? 2;
+    const bStatusOrder = statusOrder[b.status?.status] ?? 2;
+    if (aStatusOrder !== bStatusOrder) {
+      return aStatusOrder - bStatusOrder;
+    }
+    // Within same status, sort by received_at desc
+    const aTime = a.status?.received_at ? new Date(a.status.received_at as string | Date).getTime() : 0;
+    const bTime = b.status?.received_at ? new Date(b.status.received_at as string | Date).getTime() : 0;
+    return bTime - aTime;
+  });
 }
 
 /**
@@ -115,4 +130,21 @@ export async function getReviewQueueLeadsServer(): Promise<Lead[]> {
       ...doc.data(),
     })
   );
+}
+
+/**
+ * Get a single case study by ID (server-side)
+ */
+export async function getCaseStudyByIdServer(id: string): Promise<CaseStudy | null> {
+  const caseStudyRef = adminDb.collection('case_studies').doc(id);
+  const doc = await caseStudyRef.get();
+
+  if (!doc.exists) {
+    return null;
+  }
+
+  return serializeFirestoreData<CaseStudy>({
+    id: doc.id,
+    ...doc.data(),
+  });
 }

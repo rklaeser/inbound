@@ -3,26 +3,20 @@ import {
   qualifyLead,
   generateEmailForLead,
 } from '@/lib/workflow-services';
-import { LeadFormData, Classification, ClassificationResult, BotText, LeadStatus } from '@/lib/types';
-import { getConfiguration, getThresholdForClassification, shouldAutoSend } from '@/lib/configuration-helpers';
-
-/**
- * Research result type
- */
-export interface ResearchResult {
-  report: string;
-}
+import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration } from '@/lib/types';
+import { getThresholdForClassification, shouldAutoSend } from '@/lib/configuration-helpers';
 
 /**
  * Research step - gather lead information
  * Uses AI Agent with tools to collect comprehensive background data
+ * Case studies are discovered by the research agent's findCaseStudies tool
  */
-export const stepResearch = async (lead: LeadFormData): Promise<ResearchResult> => {
+export const stepResearch = async (lead: LeadFormData): Promise<string> => {
   'use step';
 
   console.log(`[Workflow] Starting research for lead: ${lead.company}`);
 
-  // Run research agent
+  // Run research agent - it will call findCaseStudies tool internally
   const { text: research } = await leadResearcher.generate({
     prompt: `Research this inbound lead:
 - Name: ${lead.name}
@@ -35,23 +29,23 @@ Provide a comprehensive research report.`
 
   console.log(`[Workflow] Research completed`);
 
-  return { report: research };
+  return research;
 };
 
 /**
- * Classification step - classify lead type
- * Analyzes lead data to determine classification category and confidence score
+ * Classification step - classify lead type using AI
+ * Note: Duplicate detection happens before the workflow starts (in submit route)
  */
 export const stepClassify = async (
   lead: LeadFormData,
-  research: ResearchResult
+  research: string
 ): Promise<ClassificationResult> => {
   'use step';
 
   console.log(`[Workflow] Starting classification`);
 
   // Run AI classification
-  const qualification = await qualifyLead(lead, research.report);
+  const qualification = await qualifyLead(lead, research);
 
   console.log(
     `[Workflow] Classification completed: ${qualification.classification} (confidence: ${qualification.confidence})`
@@ -61,27 +55,46 @@ export const stepClassify = async (
 };
 
 /**
+ * Email generation result type
+ */
+export interface EmailGenerationResult {
+  body: string;
+  includedCaseStudies: string[]; // Company names mentioned in the email
+}
+
+/**
  * Email generation step - create personalized high-quality email
  * Only called for high-quality leads; other classifications use static templates
+ * Returns the email body and which case studies were mentioned
  */
 export const stepGenerateEmail = async (
   lead: LeadFormData,
-  research: ResearchResult,
+  research: string,
   classification: ClassificationResult
-): Promise<BotText> => {
+): Promise<EmailGenerationResult> => {
   'use step';
 
   console.log(`[Workflow] Generating personalized email for high-quality lead`);
 
   // High-quality email: personalized from SDR with meeting offer
-  const highQualityEmail = await generateEmailForLead(lead, research.report, classification);
+  const result = await generateEmailForLead(lead);
 
-  console.log(`[Workflow] Email generation completed`);
+  console.log(`[Workflow] Email generation completed, included case studies: ${result.includedCaseStudies.join(', ')}`);
 
   return {
-    highQualityText: highQualityEmail.body,
-    lowQualityText: null,
+    body: result.body,
+    includedCaseStudies: result.includedCaseStudies,
   };
+};
+
+/**
+ * Config subset needed for status determination
+ * Passed in from API route (workflow runtime lacks setTimeout for Firebase)
+ */
+type StatusConfig = {
+  thresholds: Configuration['thresholds'];
+  rollout: Configuration['rollout'];
+  allowHighQualityAutoSend: boolean;
 };
 
 /**
@@ -92,7 +105,8 @@ export const stepGenerateEmail = async (
  */
 export const stepDetermineStatus = async (
   classification: Classification,
-  confidence: number
+  confidence: number,
+  config: StatusConfig
 ): Promise<{
   needs_review: boolean;
   applied_threshold: number;
@@ -104,17 +118,20 @@ export const stepDetermineStatus = async (
 
   console.log(`[Workflow] Determining status for ${classification} with confidence ${confidence}`);
 
-  // Get configuration
-  const config = await getConfiguration();
-
-  // Get threshold for this classification type
-  const threshold = getThresholdForClassification(config, classification);
+  // Get threshold for this classification type (using passed-in config)
+  const threshold = getThresholdForClassification(config as Configuration, classification);
 
   // Determine if needs review (confidence < threshold)
   const needs_review = confidence < threshold;
 
   // Determine if should auto-send
-  const autoSend = !needs_review && shouldAutoSend(confidence, threshold, config.rollout);
+  // High-quality leads require allowHighQualityAutoSend to be enabled
+  let autoSend = !needs_review && shouldAutoSend(confidence, threshold, config.rollout);
+
+  if (classification === 'high-quality' && !config.allowHighQualityAutoSend) {
+    autoSend = false;
+    console.log(`[Workflow] High-quality auto-send disabled - requires human review`);
+  }
 
   // Determine status
   let status: LeadStatus = 'review';

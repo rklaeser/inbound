@@ -20,6 +20,7 @@ export default function DashboardLayout({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { isDeveloperMode, toggleDeveloperMode } = useDeveloperMode();
   const [dynamicName, setDynamicName] = useState<string | null>(null);
+  const [caseStudiesEnabled, setCaseStudiesEnabled] = useState(false);
 
   // Fetch dynamic names for detail pages
   useEffect(() => {
@@ -46,6 +47,22 @@ export default function DashboardLayout({
 
     fetchDynamicName();
   }, [pathname]);
+
+  // Fetch settings to check if case studies is enabled
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+        if (data.success) {
+          setCaseStudiesEnabled(data.configuration?.experimental?.caseStudies ?? false);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   // Build breadcrumb segments
   const getBreadcrumbSegments = () => {
@@ -92,8 +109,8 @@ export default function DashboardLayout({
   const navItems = [
     { value: 'leads' as TabValue, label: 'Leads', path: '/dashboard' },
     { value: 'analytics' as TabValue, label: 'Analytics', path: '/dashboard/analytics' },
+    ...(caseStudiesEnabled ? [{ value: 'case-studies' as TabValue, label: 'Case Studies', path: '/dashboard/case-studies' }] : []),
     { value: 'settings' as TabValue, label: 'Settings', path: '/dashboard/settings' },
-    { value: 'case-studies' as TabValue, label: 'Case Studies', path: '/dashboard/case-studies' },
   ];
 
   return (

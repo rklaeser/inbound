@@ -24,8 +24,8 @@
   --foreground: 0 0% 98%;  /* Near white */
   --card: 0 0% 4%;  /* Very dark gray #0a0a0a */
   --card-foreground: 0 0% 98%;
-  --popover: 0 0% 4%;
-  --popover-foreground: 0 0% 98%;
+  --popover: hsl(0 0% 4%);
+  --popover-foreground: hsl(0 0% 98%);
   --primary: 0 0% 98%;  /* White for primary actions */
   --primary-foreground: 0 0% 0%;  /* Black text on white */
   --secondary: 0 0% 15%;  /* Dark gray */
@@ -105,4 +105,34 @@ code, pre {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Timeline highlight animation when navigating via #timeline anchor */
+@keyframes timeline-highlight {
+  0% {
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+}
+
+#timeline:target {
+  animation: timeline-highlight 1.5s ease-out;
+}
+
+/* Pulse border animation for JavaScript-triggered highlights */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.6);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 1s ease-in-out 2;
 }

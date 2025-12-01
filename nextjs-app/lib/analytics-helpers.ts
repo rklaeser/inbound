@@ -325,7 +325,8 @@ export function getClassificationBreakdown(leads: Lead[]): Record<Classification
     'low-quality': 0,
     'support': 0,
     'duplicate': 0,
-    'irrelevant': 0,
+    'customer-reroute': 0,
+    'internal-reroute': 0,
   };
 
   leads.forEach(lead => {
@@ -351,7 +352,8 @@ export function getConfidenceByClassification(leads: Lead[]): Array<{
     'low-quality': [],
     'support': [],
     'duplicate': [],
-    'irrelevant': [],
+    'customer-reroute': [],
+    'internal-reroute': [],
   };
 
   leads.forEach(lead => {

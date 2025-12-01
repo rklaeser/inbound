@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firestore-admin';
-import type { Lead, Classification, ClassificationEntry, BotText } from '@/lib/types';
+import type { Lead, Classification, ClassificationEntry } from '@/lib/types';
 
 export async function POST(
   request: NextRequest,
@@ -21,7 +21,9 @@ export async function POST(
     }
 
     // Validate classification value
-    const validClassifications: Classification[] = ['high-quality', 'low-quality', 'support', 'duplicate', 'irrelevant'];
+    // Note: 'duplicate' is not a valid human classification - duplicates are detected
+    // automatically via CRM lookup before classification runs
+    const validClassifications: Classification[] = ['high-quality', 'low-quality', 'support'];
     if (!validClassifications.includes(classification)) {
       return NextResponse.json(
         { success: false, error: 'Invalid classification' },
@@ -63,29 +65,41 @@ export async function POST(
       case 'high-quality': {
         // Generate personalized email for approval
         const { generateEmailForLead } = await import('@/lib/workflow-services');
+        const { getConfiguration } = await import('@/lib/configuration-helpers');
+        const { extractFirstName, assembleEmail } = await import('@/lib/email-helpers');
 
         try {
-          const email = await generateEmailForLead(
+          const emailResult = await generateEmailForLead({
+            name: lead.submission.leadName,
+            email: lead.submission.email,
+            company: lead.submission.company,
+            message: lead.submission.message,
+          });
+
+          // Assemble the full email (greeting + body + CTA + signoff + signature)
+          // Note: Case studies are NOT included - they're appended at send time
+          const config = await getConfiguration();
+          const firstName = extractFirstName(lead.submission.leadName);
+          const fullEmail = assembleEmail(
+            emailResult.body,
             {
-              name: lead.submission.leadName,
-              email: lead.submission.email,
-              company: lead.submission.company,
-              message: lead.submission.message,
+              greeting: config.emailTemplates.highQuality.greeting,
+              callToAction: config.emailTemplates.highQuality.callToAction,
+              signOff: config.emailTemplates.highQuality.signOff,
+              senderName: config.sdr.name,
+              senderLastName: config.sdr.lastName,
+              senderEmail: config.sdr.email,
+              senderTitle: config.sdr.title,
             },
-            lead.bot_research?.reasoning || '',
-            {
-              classification: 'high-quality',
-              confidence: 0.99,
-              reasoning: 'Human classified as high-quality lead',
-            }
+            firstName,
+            leadId
+            // Case studies omitted - appended at send time
           );
 
-          // Store in bot_text (replace {leadId} placeholder with actual lead ID)
-          const botText: BotText = {
-            highQualityText: email.body.replace(/{leadId}/g, leadId),
-            lowQualityText: null,  // No longer used - low-quality uses static template
-          };
-          updateData.bot_text = botText;
+          // Store the fully assembled email
+          updateData['email.text'] = fullEmail;
+          updateData['email.createdAt'] = now;
+          updateData['email.editedAt'] = now;
 
           // Stay in review for email approval
           updateData['status.status'] = 'review';
@@ -102,6 +116,8 @@ export async function POST(
         // Low-quality leads use static template and auto-send
         const { getConfiguration } = await import('@/lib/configuration-helpers');
         const { sendEmail } = await import('@/lib/send-email');
+        const { extractFirstName, renderCaseStudiesHtml, caseStudyToMatchedCaseStudy } = await import('@/lib/email-helpers');
+        const { getCaseStudyByIdServer } = await import('@/lib/firestore-server');
 
         updateData['status.status'] = 'done';
         updateData['status.sent_at'] = now;
@@ -112,6 +128,19 @@ export async function POST(
           if (config.email.enabled) {
             const template = config.emailTemplates.lowQuality;
             const testModeEmail = config.email.testMode ? config.email.testEmail : null;
+            const firstName = extractFirstName(lead.submission.leadName);
+
+            // Fill in {firstName} placeholder
+            let emailBody = template.body.replace(/{firstName}/g, firstName);
+
+            // Add default case study if configured
+            if (config.defaultCaseStudyId) {
+              const defaultCaseStudy = await getCaseStudyByIdServer(config.defaultCaseStudyId);
+              if (defaultCaseStudy) {
+                const matchedCaseStudy = caseStudyToMatchedCaseStudy(defaultCaseStudy);
+                emailBody += renderCaseStudiesHtml([matchedCaseStudy]);
+              }
+            }
 
             await sendEmail(
               {
@@ -119,7 +148,7 @@ export async function POST(
                 fromName: template.senderName,
                 fromEmail: template.senderEmail,
                 subject: template.subject,
-                html: template.body,
+                html: emailBody,
               },
               testModeEmail
             );
@@ -141,46 +170,38 @@ export async function POST(
         break;
       }
 
-      case 'duplicate': {
-        // Auto-forward to account team - mark as done
-        updateData['status.status'] = 'done';
-        updateData['status.sent_at'] = now;
-
-        responseMessage = 'Forwarded to account team';
-        break;
-      }
-
-      case 'irrelevant': {
-        // Mark as dead - done
-        updateData['status.status'] = 'done';
-        updateData['status.sent_at'] = now;
-
-        responseMessage = 'Lead marked as dead';
-        break;
-      }
     }
 
-    // Log human vs AI comparison if this lead has bot classification
-    if (lead.classifications.length > 0 && lead.classifications[0].author === 'bot') {
-      const botClassification = lead.classifications[0].classification;
-      const agreement = botClassification === classification;
+    // Log human vs AI comparison if this lead has bot research (AI classification)
+    // This handles both cases:
+    // 1. Bot classified first (in classifications array) - human is overriding
+    // 2. AI ran silently for comparison (bot_research exists but not in classifications)
+    if (lead.bot_research?.classification) {
+      const aiClassification = lead.bot_research.classification;
+      const agreement = aiClassification === classification;
+
+      // Determine the comparison type
+      const comparisonType = lead.classifications.length > 0 && lead.classifications[0].author === 'bot'
+        ? 'override'  // Human is overriding bot's authoritative classification
+        : 'blind';    // Human classified without seeing bot (bot ran silently)
 
       // Log analytics event
       await adminDb.collection('analytics_events').add({
         lead_id: leadId,
         event_type: 'human_ai_comparison',
         data: {
-          ai_classification: botClassification,
-          ai_confidence: lead.bot_research?.confidence || 0,
+          ai_classification: aiClassification,
+          ai_confidence: lead.bot_research.confidence,
           human_classification: classification,
           agreement,
-          confidence_bucket: getConfidenceBucket(lead.bot_research?.confidence || 0),
+          confidence_bucket: getConfidenceBucket(lead.bot_research.confidence),
+          comparison_type: comparisonType,
         },
         recorded_at: now,
       });
 
       console.log(
-        `[Classify] Human vs AI comparison: ${agreement ? 'Agreement' : 'Disagreement'} (AI: ${botClassification}, Human: ${classification})`
+        `[Classify] Human vs AI comparison (${comparisonType}): ${agreement ? 'Agreement' : 'Disagreement'} (AI: ${aiClassification}, Human: ${classification})`
       );
     }
 

@@ -6,6 +6,42 @@ import { adminDb } from "@/lib/firestore-admin";
 import type { Lead, Classification } from "@/lib/types";
 import { getTerminalState, getCurrentClassification, wasReclassified } from "@/lib/types";
 
+interface HumanAIComparisonStats {
+  totalComparisons: number;
+  agreements: number;
+  disagreements: number;
+  agreementRate: number;
+
+  // By comparison type
+  byComparisonType: {
+    blind: { total: number; agreements: number; agreementRate: number };
+    override: { total: number; agreements: number; agreementRate: number };
+  };
+
+  // By AI confidence bucket
+  byConfidenceBucket: {
+    bucket: string;
+    total: number;
+    agreements: number;
+    agreementRate: number;
+  }[];
+
+  // By classification
+  byClassification: {
+    classification: string;
+    total: number;
+    agreements: number;
+    agreementRate: number;
+  }[];
+
+  // Confusion matrix: AI classification vs Human classification
+  confusionMatrix: {
+    aiClassification: string;
+    humanClassification: string;
+    count: number;
+  }[];
+}
+
 interface AnalyticsData {
   totalLeads: number;
   leadsInReview: number;
@@ -15,14 +51,12 @@ interface AnalyticsData {
   sentGeneric: number;
   forwardedSupport: number;
   forwardedAccountTeam: number;
-  dead: number;
 
   classificationBreakdown: {
     'high-quality': number;
     'low-quality': number;
     support: number;
     duplicate: number;
-    irrelevant: number;
   };
 
   autoSendRate: number;
@@ -40,6 +74,9 @@ interface AnalyticsData {
   avgTimeToSendMs: number;
   avgTimeToMeetingMs: number;
   meetingsBooked: number;
+
+  // Human vs AI comparison analytics
+  humanAIComparison: HumanAIComparisonStats | null;
 }
 
 export async function GET() {
@@ -69,7 +106,6 @@ export async function GET() {
     let sentGeneric = 0;
     let forwardedSupport = 0;
     let forwardedAccountTeam = 0;
-    let dead = 0;
 
     leads.forEach((lead) => {
       const terminalState = getTerminalState(lead);
@@ -86,9 +122,6 @@ export async function GET() {
         case "forwarded_account_team":
           forwardedAccountTeam++;
           break;
-        case "dead":
-          dead++;
-          break;
       }
     });
 
@@ -98,7 +131,6 @@ export async function GET() {
       "low-quality": 0,
       support: 0,
       duplicate: 0,
-      irrelevant: 0,
     };
 
     leads.forEach((lead) => {
@@ -171,6 +203,124 @@ export async function GET() {
     // Sort by count descending
     confidenceByClassification.sort((a, b) => b.count - a.count);
 
+    // Human vs AI comparison analytics
+    // Query the analytics_events collection for human_ai_comparison events
+    const comparisonEventsSnapshot = await adminDb
+      .collection("analytics_events")
+      .where("event_type", "==", "human_ai_comparison")
+      .get();
+
+    let humanAIComparison: HumanAIComparisonStats | null = null;
+
+    if (!comparisonEventsSnapshot.empty) {
+      const comparisonEvents = comparisonEventsSnapshot.docs.map((doc) => doc.data());
+
+      // Initialize aggregation structures
+      let totalComparisons = 0;
+      let agreements = 0;
+
+      const byComparisonType = {
+        blind: { total: 0, agreements: 0 },
+        override: { total: 0, agreements: 0 },
+      };
+
+      const byConfidenceBucketMap = new Map<string, { total: number; agreements: number }>();
+      const byClassificationMap = new Map<string, { total: number; agreements: number }>();
+      const confusionMatrixMap = new Map<string, number>();
+
+      // Process each comparison event
+      comparisonEvents.forEach((event) => {
+        const data = event.data as {
+          ai_classification: string;
+          ai_confidence: number;
+          human_classification: string;
+          agreement: boolean;
+          confidence_bucket: string;
+          comparison_type?: 'blind' | 'override';
+        };
+
+        totalComparisons++;
+        if (data.agreement) agreements++;
+
+        // By comparison type
+        const compType = data.comparison_type || 'override'; // Default to override for legacy events
+        byComparisonType[compType].total++;
+        if (data.agreement) byComparisonType[compType].agreements++;
+
+        // By confidence bucket
+        const bucket = data.confidence_bucket;
+        const bucketStats = byConfidenceBucketMap.get(bucket) || { total: 0, agreements: 0 };
+        bucketStats.total++;
+        if (data.agreement) bucketStats.agreements++;
+        byConfidenceBucketMap.set(bucket, bucketStats);
+
+        // By AI classification
+        const aiCls = data.ai_classification;
+        const clsStats = byClassificationMap.get(aiCls) || { total: 0, agreements: 0 };
+        clsStats.total++;
+        if (data.agreement) clsStats.agreements++;
+        byClassificationMap.set(aiCls, clsStats);
+
+        // Confusion matrix
+        const matrixKey = `${data.ai_classification}|${data.human_classification}`;
+        confusionMatrixMap.set(matrixKey, (confusionMatrixMap.get(matrixKey) || 0) + 1);
+      });
+
+      // Build the comparison stats object
+      const byConfidenceBucket = Array.from(byConfidenceBucketMap.entries())
+        .map(([bucket, stats]) => ({
+          bucket,
+          total: stats.total,
+          agreements: stats.agreements,
+          agreementRate: stats.total > 0 ? Math.round((stats.agreements / stats.total) * 100) : 0,
+        }))
+        .sort((a, b) => {
+          // Sort buckets in order: 0-50%, 50-70%, 70-90%, 90-100%
+          const order = ['0-50%', '50-70%', '70-90%', '90-100%'];
+          return order.indexOf(a.bucket) - order.indexOf(b.bucket);
+        });
+
+      const byClassification = Array.from(byClassificationMap.entries())
+        .map(([classification, stats]) => ({
+          classification,
+          total: stats.total,
+          agreements: stats.agreements,
+          agreementRate: stats.total > 0 ? Math.round((stats.agreements / stats.total) * 100) : 0,
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      const confusionMatrix = Array.from(confusionMatrixMap.entries())
+        .map(([key, count]) => {
+          const [aiClassification, humanClassification] = key.split('|');
+          return { aiClassification, humanClassification, count };
+        })
+        .sort((a, b) => b.count - a.count);
+
+      humanAIComparison = {
+        totalComparisons,
+        agreements,
+        disagreements: totalComparisons - agreements,
+        agreementRate: totalComparisons > 0 ? Math.round((agreements / totalComparisons) * 100) : 0,
+        byComparisonType: {
+          blind: {
+            ...byComparisonType.blind,
+            agreementRate: byComparisonType.blind.total > 0
+              ? Math.round((byComparisonType.blind.agreements / byComparisonType.blind.total) * 100)
+              : 0,
+          },
+          override: {
+            ...byComparisonType.override,
+            agreementRate: byComparisonType.override.total > 0
+              ? Math.round((byComparisonType.override.agreements / byComparisonType.override.total) * 100)
+              : 0,
+          },
+        },
+        byConfidenceBucket,
+        byClassification,
+        confusionMatrix,
+      };
+    }
+
     // Timing metrics
     let totalProcessingTime = 0;
     let processingTimeCount = 0;
@@ -227,7 +377,6 @@ export async function GET() {
       sentGeneric,
       forwardedSupport,
       forwardedAccountTeam,
-      dead,
       classificationBreakdown,
       autoSendRate: Math.round(autoSendRate * 100) / 100,
       humanOverrideRate: Math.round(humanOverrideRate * 100) / 100,
@@ -238,6 +387,7 @@ export async function GET() {
       avgTimeToSendMs,
       avgTimeToMeetingMs,
       meetingsBooked: timeToMeetingCount,
+      humanAIComparison,
     };
 
     return NextResponse.json({
