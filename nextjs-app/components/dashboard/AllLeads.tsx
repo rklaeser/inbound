@@ -25,6 +25,7 @@ import { getCurrentClassification, STATUS_FILTER_OPTIONS, TYPE_FILTER_OPTIONS } 
 import { CheckCircle2, XCircle, ChevronDown, Settings, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
+import { getSDRAvatarUrl } from '@/lib/sdr-profiles';
 
 interface AllLeadsProps {
   initialLeads: Lead[];
@@ -80,10 +81,20 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
       return false;
     }
 
-    // Type filter - check classification
+    // Type filter - check classification or rerouted status
     const classification = getCurrentClassification(lead) || 'unclassified';
-    if (!selectedTypes.has(classification)) {
-      return false;
+
+    // Special handling for 'rerouted' filter - check if lead has reroute field
+    if (lead.reroute) {
+      // Lead has been rerouted - show if 'rerouted' is selected
+      if (!selectedTypes.has('rerouted')) {
+        return false;
+      }
+    } else {
+      // Normal lead - check classification filter
+      if (!selectedTypes.has(classification)) {
+        return false;
+      }
     }
 
     return true;
@@ -199,6 +210,12 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[160px]">
+            <button
+              className="w-full text-left text-xs text-muted-foreground hover:text-foreground hover:bg-accent px-3 py-1.5 rounded transition-colors mb-1"
+              onClick={() => setSelectedStatuses(new Set(STATUS_FILTER_OPTIONS.map(s => s.key)))}
+            >
+              Select All
+            </button>
             {STATUS_FILTER_OPTIONS.map((option) => (
               <DropdownMenuCheckboxItem
                 key={option.key}
@@ -213,7 +230,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 />
                 <span className="flex-1">{option.label}</span>
                 <button
-                  className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:!bg-accent px-1.5 py-0.5 rounded transition-opacity"
+                  className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground px-1.5 py-0.5 rounded transition-all border border-transparent hover:border-border"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedStatuses(new Set([option.key]));
@@ -254,6 +271,12 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[180px]">
+            <button
+              className="w-full text-left text-xs text-muted-foreground hover:text-foreground hover:bg-accent px-3 py-1.5 rounded transition-colors mb-1"
+              onClick={() => setSelectedTypes(new Set(TYPE_FILTER_OPTIONS.map(t => t.key)))}
+            >
+              Select All
+            </button>
             {TYPE_FILTER_OPTIONS.map((option) => (
               <DropdownMenuCheckboxItem
                 key={option.key}
@@ -268,7 +291,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 />
                 <span className="flex-1">{option.label}</span>
                 <button
-                  className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:!bg-accent px-1.5 py-0.5 rounded transition-opacity"
+                  className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-accent-foreground px-1.5 py-0.5 rounded transition-all border border-transparent hover:border-border"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedTypes(new Set([option.key]));
@@ -283,7 +306,7 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
       </div>
 
       {/* Table */}
-      <div className="bg-[#0a0a0a] border border-[rgba(255,255,255,0.06)] rounded-md">
+      <div className="bg-card border border-border rounded-md">
         <Table>
           <TableBody>
             {filteredLeads.length === 0 ? (
@@ -308,13 +331,12 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                 // Processing rows have no click behavior, completed rows are dimmed
                 const rowClassName = isProcessing
                   ? 'cursor-not-allowed opacity-70'
-                  : `cursor-pointer hover:bg-[#000000] ${isCompleted ? 'opacity-50' : ''}`;
+                  : `cursor-pointer hover:bg-muted/50 ${isCompleted ? 'opacity-50' : ''}`;
 
                 return (
                   <TableRow
                     key={lead.id}
-                    className={rowClassName}
-                    style={{ borderColor: 'rgba(255,255,255,0.06)' }}
+                    className={`${rowClassName} border-border`}
                     onClick={() => !isProcessing && router.push(`/dashboard/leads/${lead.id}`)}
                   >
                     {/* Test Result Indicator (Dev Mode Only) */}
@@ -347,7 +369,22 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                       </div>
                     </TableCell>
 
-                    {/* Lead Badge - shows outcome or action */}
+                    {/* Status */}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{
+                            backgroundColor: STATUS_FILTER_OPTIONS.find(s => s.key === lead.status.status)?.color
+                          }}
+                        />
+                        <span className="text-xs capitalize text-muted-foreground">
+                          {lead.status.status}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* Lead Badge - shows classification or status */}
                     <TableCell>
                       <LeadBadge lead={lead} />
                     </TableCell>
@@ -371,28 +408,28 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                         const isSystem = sentBy === 'system';
                         return (
                           <span className="font-mono text-xs flex items-center gap-1.5">
-                            <span style={{ color: '#fafafa' }}>{ttr}</span>
+                            <span className="text-foreground">{ttr}</span>
                             <span className="text-muted-foreground">by</span>
                             {isBot ? (
                               <>
                                 <span>🤖</span>
-                                <span style={{ color: '#fafafa' }}>Bot</span>
+                                <span className="text-foreground">Bot</span>
                               </>
                             ) : isSystem ? (
                               <>
-                                <Settings className="h-3.5 w-3.5" style={{ color: '#a1a1a1' }} />
-                                <span style={{ color: '#fafafa' }}>System</span>
+                                <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-foreground">System</span>
                               </>
                             ) : sentBy ? (
                               <>
                                 <Image
-                                  src="/profpic.jpeg"
+                                  src={getSDRAvatarUrl(sentBy)}
                                   alt={sentBy}
                                   width={16}
                                   height={16}
                                   className="rounded-full"
                                 />
-                                <span style={{ color: '#fafafa' }}>{sentBy}</span>
+                                <span className="text-foreground">{sentBy}</span>
                               </>
                             ) : (
                               <span className="text-muted-foreground">—</span>
@@ -403,16 +440,17 @@ export default function AllLeads({ initialLeads }: AllLeadsProps) {
                     </TableCell>
 
                     {/* Why icon - link to timeline */}
-                    <TableCell className="w-8 pr-4">
+                    <TableCell className="w-8 pr-4 overflow-visible">
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center justify-center"
+                        className="relative h-8 flex items-center justify-end"
                       >
                         <Link
                           href={`/dashboard/leads/${lead.id}#timeline`}
-                          className="p-2 -m-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          className="absolute right-0 group flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                           title="View decision timeline"
                         >
+                          <span className="text-xs font-medium hidden group-hover:inline">Why</span>
                           <HelpCircle className="h-4 w-4" />
                         </Link>
                       </div>

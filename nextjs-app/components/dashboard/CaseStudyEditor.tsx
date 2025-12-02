@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronUp, ChevronDown, X, Plus, GripVertical } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MatchedCaseStudy } from '@/lib/types';
 import type { CaseStudy } from '@/lib/case-studies/types';
@@ -66,22 +66,6 @@ export function CaseStudyEditor({
     }
   };
 
-  const moveUp = (index: number) => {
-    if (index === 0 || disabled) return;
-    const newList = [...localCaseStudies];
-    [newList[index - 1], newList[index]] = [newList[index], newList[index - 1]];
-    setLocalCaseStudies(newList);
-    saveChanges(newList);
-  };
-
-  const moveDown = (index: number) => {
-    if (index === localCaseStudies.length - 1 || disabled) return;
-    const newList = [...localCaseStudies];
-    [newList[index], newList[index + 1]] = [newList[index + 1], newList[index]];
-    setLocalCaseStudies(newList);
-    saveChanges(newList);
-  };
-
   const remove = (index: number) => {
     if (disabled) return;
     const newList = localCaseStudies.filter((_, i) => i !== index);
@@ -117,32 +101,7 @@ export function CaseStudyEditor({
           key={cs.caseStudyId}
           className="border border-[rgba(255,255,255,0.1)] rounded-lg p-4 group"
         >
-          <div className="flex items-start gap-3">
-            {/* Reorder controls */}
-            {!disabled && (
-              <div className="flex flex-col items-center gap-0.5 pt-0.5">
-                <button
-                  onClick={() => moveUp(index)}
-                  disabled={index === 0 || isSaving}
-                  className="p-0.5 rounded hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  title="Move up"
-                >
-                  <ChevronUp className="h-4 w-4 text-[#666]" />
-                </button>
-                <GripVertical className="h-4 w-4 text-[#444]" />
-                <button
-                  onClick={() => moveDown(index)}
-                  disabled={index === localCaseStudies.length - 1 || isSaving}
-                  className="p-0.5 rounded hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  title="Move down"
-                >
-                  <ChevronDown className="h-4 w-4 text-[#666]" />
-                </button>
-              </div>
-            )}
-
-            {/* Case study content - Vercel customers page style */}
-            <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex flex-col">
               {/* Logo */}
               <div className="mb-4 h-8 flex items-center justify-between">
                 <div className="h-8 flex items-center">
@@ -188,7 +147,6 @@ export function CaseStudyEditor({
                   <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </a>
-            </div>
           </div>
         </div>
       ))}

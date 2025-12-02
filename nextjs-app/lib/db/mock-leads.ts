@@ -23,7 +23,7 @@ export const testData = {
     },
   },
   fake: {
-    label: 'Low Quality (fake company)',
+    label: 'Fake company',
     expectedClassification: 'low-quality' as const,
     data: {
       name: 'John Doe',
@@ -33,7 +33,7 @@ export const testData = {
     },
   },
   quality: {
-    label: 'Quality (person not found)',
+    label: 'Person not found',
     expectedClassification: 'high-quality' as const,
     data: {
       name: 'Jennifer Martinez',
@@ -43,7 +43,7 @@ export const testData = {
     },
   },
   weak: {
-    label: 'Low Quality',
+    label: 'Standard',
     expectedClassification: 'low-quality' as const,
     data: {
       name: 'Bob Smith',
@@ -63,7 +63,7 @@ export const testData = {
     },
   },
   appleQuality: {
-    label: 'Quality (no LinkedIn)',
+    label: 'No LinkedIn',
     expectedClassification: 'high-quality' as const,
     data: {
       name: 'Sabih Khan',
@@ -73,7 +73,7 @@ export const testData = {
     },
   },
   appleWeak: {
-    label: 'Low Quality (borderline)',
+    label: 'Borderline',
     expectedClassification: 'low-quality' as const,
     data: {
       name: 'Matthias Mueller',
@@ -83,7 +83,7 @@ export const testData = {
     },
   },
   appleAmbiguous: {
-    label: 'Quality (borderline)',
+    label: 'Borderline',
     expectedClassification: 'high-quality' as const,
     data: {
       name: 'Michael Wu',
@@ -93,7 +93,7 @@ export const testData = {
     },
   },
   mcmasterCarr: {
-    label: 'Quality',
+    label: 'Standard',
     expectedClassification: 'high-quality' as const,
     data: {
       name: 'Nina Shirole',
@@ -103,7 +103,7 @@ export const testData = {
     },
   },
   ambiguousSupport: {
-    label: 'Quality (borderline support)',
+    label: 'Borderline support',
     expectedClassification: 'high-quality' as const,
     data: {
       name: 'David Chen',

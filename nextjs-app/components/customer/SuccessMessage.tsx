@@ -67,17 +67,11 @@ export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessag
   return (
     <div className="text-center">
       {/* Success Icon */}
-      <div
-        className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
-        style={{
-          background: 'rgba(0, 170, 0, 0.1)',
-          border: '1px solid var(--green)',
-        }}
-      >
+      <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-green-500/10 border border-green-500">
         <svg
-          className="w-8 h-8"
+          className="w-8 h-8 text-green-500"
           fill="none"
-          stroke="var(--green)"
+          stroke="currentColor"
           viewBox="0 0 24 24"
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -91,25 +85,18 @@ export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessag
       </div>
 
       {/* Success Heading */}
-      <h2
-        className="text-2xl font-semibold mb-2"
-        style={{ color: 'var(--text-primary)' }}
-      >
+      <h2 className="text-2xl font-semibold mb-2 text-foreground">
         We'll be in touch!
       </h2>
 
       {/* Success Message with Link */}
-      <p
-        className="text-base mb-6"
-        style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}
-      >
+      <p className="text-base mb-6 text-muted-foreground leading-relaxed">
         In the meantime,{' '}
         <a
           href="https://vercel.com/customers"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition-opacity hover:opacity-70"
-          style={{ color: 'var(--blue)' }}
+          className="transition-opacity hover:opacity-70 text-blue-500"
         >
           see how industry leading companies use Vercel.
         </a>
@@ -135,60 +122,40 @@ export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessag
 
       {/* Book a Meeting Card */}
       {sentEmail && leadId && (
-        <div
-          className="mt-8 mb-6 p-6 rounded-md border relative"
-          style={{
-            background: 'var(--background-primary)',
-            borderColor: 'var(--border)',
-          }}
-        >
-          {/* Just now label - top left corner */}
-          <p
-            className="text-xs font-medium absolute top-1 left-3"
-            style={{ color: 'var(--green)' }}
-          >
-            Just now
-          </p>
-
+        <div className="mt-8 mb-6 p-6 rounded-md border border-border bg-background">
           <div className="flex items-center justify-between gap-4">
             {/* Book Meeting Button - Left */}
             <a
               href={`/book-meeting/${leadId}`}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium transition-opacity hover:opacity-90"
-              style={{
-                background: 'var(--foreground)',
-                color: 'var(--background)',
-              }}
+              className="flex items-center gap-3 group"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              Book a Meeting
+              <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center transition-colors group-hover:bg-blue-600">
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <span className="text-base font-medium text-foreground group-hover:text-blue-500 transition-colors">
+                Book a Meeting
+              </span>
             </a>
 
             {/* SDR Profile - Right */}
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p
-                  className="text-base font-medium"
-                  style={{ color: 'var(--text-primary)' }}
-                >
+                <p className="text-base font-medium text-foreground">
                   Ryan Vercel
                 </p>
-                <p
-                  className="text-sm"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
+                <p className="text-sm text-muted-foreground">
                   Development Manager
                 </p>
               </div>
@@ -204,14 +171,8 @@ export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessag
 
       {/* Error State */}
       {error && (
-        <div
-          className="mt-8 mb-6 p-4 rounded-md border text-center"
-          style={{
-            background: 'var(--background-primary)',
-            borderColor: 'var(--border)',
-          }}
-        >
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <div className="mt-8 mb-6 p-4 rounded-md border border-border bg-background text-center">
+          <p className="text-sm text-muted-foreground">
             {error}
           </p>
         </div>
@@ -232,13 +193,7 @@ function CaseStudyCard({
   devModeEnabled?: boolean;
 }) {
   return (
-    <div
-      className="p-5 rounded-md border text-left flex flex-col"
-      style={{
-        background: 'var(--background-primary)',
-        borderColor: 'var(--border)',
-      }}
-    >
+    <div className="p-5 rounded-md border border-border bg-background text-left flex flex-col">
       {/* Logo at top */}
       <div className="mb-4 h-8 flex items-center">
         {caseStudy.logoSvg ? (
@@ -249,30 +204,20 @@ function CaseStudyCard({
             style={{ filter: 'brightness(0) invert(1)' }}
           />
         ) : (
-          <span className="text-[#888] text-lg font-semibold">{caseStudy.company}</span>
+          <span className="text-muted-foreground text-lg font-semibold">{caseStudy.company}</span>
         )}
       </div>
 
       {/* Dev Mode: Match Reason */}
       {devModeEnabled && caseStudy.matchReason && (
-        <div
-          className="mb-3 p-2 rounded text-xs font-mono"
-          style={{
-            background: 'rgba(0, 112, 243, 0.1)',
-            borderLeft: '2px solid var(--blue)',
-            color: 'var(--text-secondary)',
-          }}
-        >
+        <div className="mb-3 p-2 rounded text-xs font-mono bg-blue-500/10 border-l-2 border-blue-500 text-muted-foreground">
           {caseStudy.matchReason}
         </div>
       )}
 
       {/* Featured Text */}
       {caseStudy.featuredText && (
-        <p
-          className="text-base mb-4"
-          style={{ color: '#888', lineHeight: '1.6' }}
-        >
+        <p className="text-base mb-4 text-muted-foreground leading-relaxed">
           {caseStudy.featuredText}
         </p>
       )}
@@ -285,8 +230,7 @@ function CaseStudyCard({
         href={caseStudy.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-sm transition-colors hover:text-[#a1a1a1] mt-auto"
-        style={{ color: '#888' }}
+        className="inline-flex items-center gap-1 text-sm transition-colors hover:text-foreground text-muted-foreground mt-auto"
       >
         Read the full story
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="ml-1">

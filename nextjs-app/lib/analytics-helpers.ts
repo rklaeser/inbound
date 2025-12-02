@@ -318,6 +318,7 @@ export function getBotAccuracy(leads: Lead[]): number | null {
 
 /**
  * Get classification breakdown for a set of leads
+ * Rerouted leads are excluded since they represent misclassifications
  */
 export function getClassificationBreakdown(leads: Lead[]): Record<Classification, number> {
   const breakdown: Record<Classification, number> = {
@@ -325,12 +326,12 @@ export function getClassificationBreakdown(leads: Lead[]): Record<Classification
     'low-quality': 0,
     'support': 0,
     'duplicate': 0,
-    'customer-reroute': 0,
-    'support-reroute': 0,
-    'sales-reroute': 0,
   };
 
   leads.forEach(lead => {
+    // Exclude rerouted leads from breakdown
+    if (lead.reroute) return;
+
     const classification = getCurrentClassification(lead);
     if (classification) {
       breakdown[classification]++;
@@ -342,6 +343,7 @@ export function getClassificationBreakdown(leads: Lead[]): Record<Classification
 
 /**
  * Get confidence distribution by classification
+ * Rerouted leads are excluded since they represent misclassifications
  */
 export function getConfidenceByClassification(leads: Lead[]): Array<{
   classification: Classification;
@@ -353,12 +355,12 @@ export function getConfidenceByClassification(leads: Lead[]): Array<{
     'low-quality': [],
     'support': [],
     'duplicate': [],
-    'customer-reroute': [],
-    'support-reroute': [],
-    'sales-reroute': [],
   };
 
   leads.forEach(lead => {
+    // Exclude rerouted leads from confidence calculations
+    if (lead.reroute) return;
+
     if (lead.bot_research) {
       grouped[lead.bot_research.classification].push(lead.bot_research.confidence);
     }

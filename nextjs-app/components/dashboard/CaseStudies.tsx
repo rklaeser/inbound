@@ -2,6 +2,11 @@
 
 import { useState } from 'react';
 import { INDUSTRIES, type CaseStudy, type Industry } from '@/lib/case-studies/types';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
 
 interface CaseStudiesProps {
   initialCaseStudies: CaseStudy[];
@@ -283,29 +288,8 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex items-center gap-2">
-          <svg
-            className="animate-spin h-5 w-5"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-              style={{ stroke: 'var(--text-secondary)' }}
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              style={{ fill: 'var(--text-primary)' }}
-            />
-          </svg>
-          <span style={{ color: 'var(--text-secondary)' }}>Loading case studies...</span>
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <span className="text-muted-foreground">Loading case studies...</span>
         </div>
       </div>
     );
@@ -313,14 +297,8 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
 
   if (error) {
     return (
-      <div
-        className="p-4 rounded-md border"
-        style={{
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          borderColor: '#ef4444',
-        }}
-      >
-        <p style={{ color: '#ef4444' }}>{error}</p>
+      <div className="p-4 rounded-md border border-destructive bg-destructive/10">
+        <p className="text-destructive">{error}</p>
       </div>
     );
   }
@@ -328,21 +306,12 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
   return (
     <div className="space-y-6">
       {/* Add Case Study Section */}
-      <div
-        className="p-4 rounded-md border"
-        style={{
-          backgroundColor: 'var(--background-secondary)',
-          borderColor: 'var(--border)',
-        }}
-      >
-        <h3
-          className="text-sm font-medium mb-3"
-          style={{ color: 'var(--text-primary)' }}
-        >
+      <Card className="p-4">
+        <h3 className="text-sm font-medium mb-3 text-foreground">
           Add Case Study
         </h3>
         <div className="space-y-3">
-          <input
+          <Input
             type="url"
             value={newUrl}
             onChange={(e) => {
@@ -350,15 +319,9 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
               setAddError(null);
             }}
             placeholder="Case study URL (e.g., https://vercel.com/customers/notion)"
-            className="w-full px-3 py-2 rounded-md border text-sm"
-            style={{
-              backgroundColor: 'var(--background-primary)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)',
-            }}
             disabled={isAdding}
           />
-          <input
+          <Input
             type="url"
             value={newLogoUrl}
             onChange={(e) => {
@@ -366,12 +329,6 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
               setAddError(null);
             }}
             placeholder="Logo SVG URL (e.g., https://vercel.com/.../notion-dark.svg)"
-            className="w-full px-3 py-2 rounded-md border text-sm"
-            style={{
-              backgroundColor: 'var(--background-primary)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)',
-            }}
             disabled={isAdding}
           />
           <textarea
@@ -382,82 +339,44 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
             }}
             placeholder="Featured text (copy from vercel.com/customers)"
             rows={2}
-            className="w-full px-3 py-2 rounded-md border text-sm resize-none"
-            style={{
-              backgroundColor: 'var(--background-primary)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)',
-            }}
+            className="w-full px-3 py-2 rounded-md border border-input bg-transparent text-sm resize-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isAdding}
           />
-          <button
+          <Button
             onClick={handleAddCaseStudy}
             disabled={isAdding || !newUrl.trim() || !newLogoUrl.trim() || !newFeaturedText.trim()}
-            className="w-full px-4 py-2 rounded-md text-sm font-medium transition-opacity disabled:opacity-50"
-            style={{
-              backgroundColor: 'var(--text-primary)',
-              color: 'var(--background-primary)',
-            }}
+            variant="light"
+            className="w-full"
           >
             {isAdding ? (
               <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Adding...
               </span>
             ) : (
               'Add Case Study'
             )}
-          </button>
+          </Button>
         </div>
         {addError && (
-          <p className="mt-2 text-sm" style={{ color: '#ef4444' }}>
+          <p className="mt-2 text-sm text-destructive">
             {addError}
           </p>
         )}
-        <p
-          className="mt-2 text-xs"
-          style={{ color: 'var(--text-secondary)' }}
-        >
+        <p className="mt-2 text-xs text-muted-foreground">
           AI will extract company info, description, and products from the case study page
         </p>
-      </div>
+      </Card>
 
       {/* Filter Section */}
       <div className="flex items-center gap-4">
-        <label
-          className="text-sm"
-          style={{ color: 'var(--text-secondary)' }}
-        >
+        <label className="text-sm text-muted-foreground">
           Filter by Industry:
         </label>
         <select
           value={selectedIndustry}
           onChange={(e) => setSelectedIndustry(e.target.value as Industry | 'all')}
-          className="px-3 py-1.5 rounded-md border text-sm"
-          style={{
-            backgroundColor: 'var(--background-secondary)',
-            borderColor: 'var(--border)',
-            color: 'var(--text-primary)',
-          }}
+          className="px-3 py-1.5 rounded-md border border-input bg-card text-sm text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <option value="all">All Industries ({caseStudies.length})</option>
           {availableIndustries.map((industry) => {
@@ -470,22 +389,19 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
           })}
         </select>
         {selectedIndustry !== 'all' && (
-          <button
+          <Button
             onClick={() => setSelectedIndustry('all')}
-            className="text-xs px-2 py-1 rounded border transition-opacity hover:opacity-70"
-            style={{
-              color: 'var(--text-secondary)',
-              borderColor: 'var(--border)',
-            }}
+            variant="outline"
+            size="sm"
           >
             Clear filter
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Results count */}
       {selectedIndustry !== 'all' && (
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-sm text-muted-foreground">
           Showing {filteredCaseStudies.length} case {filteredCaseStudies.length === 1 ? 'study' : 'studies'} in {selectedIndustry}
         </p>
       )}
@@ -493,20 +409,14 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
       {/* Case Studies List */}
       {filteredCaseStudies.length === 0 ? (
         <div className="text-center py-12">
-          <p style={{ color: 'var(--text-secondary)' }} className="mb-4">
+          <p className="text-muted-foreground mb-4">
             {caseStudies.length === 0
               ? 'No case studies found. Add one using the form above or run the migration script.'
               : `No case studies found in "${selectedIndustry}".`
             }
           </p>
           {caseStudies.length === 0 && (
-            <code
-              className="px-3 py-1 rounded text-sm font-mono"
-              style={{
-                backgroundColor: 'var(--background-secondary)',
-                color: 'var(--text-primary)'
-              }}
-            >
+            <code className="px-3 py-1 rounded text-sm font-mono bg-card text-foreground">
               npx tsx ../scripts/migrate-case-studies.ts
             </code>
           )}
@@ -514,25 +424,12 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
       ) : (
         <div className="space-y-4">
           {filteredCaseStudies.map((caseStudy) => (
-            <div
-              key={caseStudy.id}
-              className="p-6 rounded-md border"
-              style={{
-                backgroundColor: 'var(--background-secondary)',
-                borderColor: 'var(--border)',
-              }}
-            >
+            <Card key={caseStudy.id} className="p-6">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-start gap-3">
                   {/* Logo */}
-                  <div
-                    className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0"
-                    style={{
-                      backgroundColor: 'var(--background-primary)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
+                  <div className="w-10 h-10 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0 bg-background border border-border">
                     {caseStudy.logoSvg ? (
                       <img
                         src={`data:image/svg+xml;base64,${btoa(caseStudy.logoSvg)}`}
@@ -547,7 +444,7 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="1.5"
-                        style={{ color: 'var(--text-secondary)' }}
+                        className="text-muted-foreground"
                       >
                         <rect x="3" y="3" width="18" height="18" rx="2" />
                         <circle cx="8.5" cy="8.5" r="1.5" />
@@ -557,28 +454,14 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3
-                        className="text-lg font-semibold"
-                        style={{ color: 'var(--text-primary)' }}
-                      >
+                      <h3 className="text-lg font-semibold text-foreground">
                         {caseStudy.company}
                       </h3>
                       {defaultCaseStudyId === caseStudy.id && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                            color: '#22c55e',
-                          }}
-                        >
-                          Default
-                        </span>
+                        <Badge variant="success">Default</Badge>
                       )}
                     </div>
-                    <p
-                      className="text-sm mt-1"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
+                    <p className="text-sm mt-1 text-muted-foreground">
                       {caseStudy.industry}
                     </p>
                   </div>
@@ -587,121 +470,101 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
                   {/* Logo URL Input */}
                   {editingLogoId === caseStudy.id ? (
                     <div className="flex items-center gap-2">
-                      <input
+                      <Input
                         type="url"
                         value={logoUrlInput}
                         onChange={(e) => setLogoUrlInput(e.target.value)}
                         placeholder="Logo URL"
-                        className="w-48 px-2 py-1 text-sm rounded border"
-                        style={{
-                          backgroundColor: 'var(--background-primary)',
-                          borderColor: 'var(--border)',
-                          color: 'var(--text-primary)',
-                        }}
+                        className="w-48"
                         autoFocus
                       />
-                      <button
+                      <Button
                         onClick={() => handleSaveLogo(caseStudy.id, logoUrlInput)}
                         disabled={savingLogoId === caseStudy.id}
-                        className="text-sm px-2 py-1 rounded border transition-opacity hover:opacity-70 disabled:opacity-50"
-                        style={{
-                          color: '#22c55e',
-                          borderColor: 'var(--border)',
-                        }}
+                        variant="outline"
+                        size="sm"
+                        className="text-green-500"
                       >
                         {savingLogoId === caseStudy.id ? '...' : 'Save'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => {
                           setEditingLogoId(null);
                           setLogoUrlInput('');
                         }}
-                        className="text-sm px-2 py-1 rounded border transition-opacity hover:opacity-70"
-                        style={{
-                          color: 'var(--text-secondary)',
-                          borderColor: 'var(--border)',
-                        }}
+                        variant="outline"
+                        size="sm"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   ) : (
-                    <button
+                    <Button
                       onClick={() => {
                         setEditingLogoId(caseStudy.id);
-                        setLogoUrlInput('');  // Clear since we store SVG content, not URL
+                        setLogoUrlInput('');
                       }}
-                      className="text-sm px-3 py-1 rounded border transition-opacity hover:opacity-70"
-                      style={{
-                        color: 'var(--text-secondary)',
-                        borderColor: 'var(--border)',
-                      }}
+                      variant="outline"
+                      size="sm"
                     >
                       {caseStudy.logoSvg ? 'Edit Logo' : 'Add Logo'}
-                    </button>
+                    </Button>
                   )}
                   {defaultCaseStudyId !== caseStudy.id && (
-                    <button
+                    <Button
                       onClick={() => handleSetDefault(caseStudy.id)}
                       disabled={settingDefaultId === caseStudy.id}
-                      className="text-sm px-3 py-1 rounded border transition-opacity hover:opacity-70 disabled:opacity-50"
-                      style={{
-                        color: '#22c55e',
-                        borderColor: 'var(--border)',
-                      }}
+                      variant="outline"
+                      size="sm"
+                      className="text-green-500"
                     >
                       {settingDefaultId === caseStudy.id ? 'Setting...' : 'Set Default'}
-                    </button>
+                    </Button>
                   )}
-                  <a
-                    href={caseStudy.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm px-3 py-1 rounded border transition-opacity hover:opacity-70"
-                    style={{
-                      color: 'var(--blue)',
-                      borderColor: 'var(--border)',
-                    }}
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-500"
                   >
-                    View
-                  </a>
-                  <button
+                    <a
+                      href={caseStudy.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View
+                    </a>
+                  </Button>
+                  <Button
                     onClick={() => handleDelete(caseStudy.id, caseStudy.company)}
                     disabled={deletingId === caseStudy.id}
-                    className="text-sm px-3 py-1 rounded border transition-opacity hover:opacity-70 disabled:opacity-50"
-                    style={{
-                      color: '#ef4444',
-                      borderColor: 'var(--border)',
-                    }}
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
                   >
                     {deletingId === caseStudy.id ? 'Deleting...' : 'Delete'}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {/* Featured Text (editable) */}
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
-                  <p
-                    className="text-xs font-medium uppercase tracking-wider"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Featured Text
                   </p>
                   {editingFeaturedTextId !== caseStudy.id && (
-                    <button
+                    <Button
                       onClick={() => {
                         setEditingFeaturedTextId(caseStudy.id);
                         setFeaturedTextInput(caseStudy.featuredText || '');
                       }}
-                      className="text-xs px-2 py-1 rounded border transition-opacity hover:opacity-70"
-                      style={{
-                        color: 'var(--text-secondary)',
-                        borderColor: 'var(--border)',
-                      }}
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-xs"
                     >
                       Edit
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {editingFeaturedTextId === caseStudy.id ? (
@@ -710,81 +573,52 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
                       value={featuredTextInput}
                       onChange={(e) => setFeaturedTextInput(e.target.value)}
                       rows={3}
-                      className="w-full px-3 py-2 rounded-md border text-sm resize-none"
-                      style={{
-                        backgroundColor: 'var(--background-primary)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text-primary)',
-                      }}
+                      className="w-full px-3 py-2 rounded-md border border-input bg-transparent text-sm resize-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       autoFocus
                     />
                     <div className="flex gap-2">
-                      <button
+                      <Button
                         onClick={() => handleSaveFeaturedText(caseStudy.id, featuredTextInput)}
                         disabled={savingFeaturedTextId === caseStudy.id}
-                        className="text-sm px-3 py-1 rounded border transition-opacity hover:opacity-70 disabled:opacity-50"
-                        style={{
-                          color: '#22c55e',
-                          borderColor: 'var(--border)',
-                        }}
+                        variant="outline"
+                        size="sm"
+                        className="text-green-500"
                       >
                         {savingFeaturedTextId === caseStudy.id ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => {
                           setEditingFeaturedTextId(null);
                           setFeaturedTextInput('');
                         }}
-                        className="text-sm px-3 py-1 rounded border transition-opacity hover:opacity-70"
-                        style={{
-                          color: 'var(--text-secondary)',
-                          borderColor: 'var(--border)',
-                        }}
+                        variant="outline"
+                        size="sm"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (
-                  <p
-                    className="text-sm p-3 rounded-md border"
-                    style={{
-                      backgroundColor: 'var(--background-primary)',
-                      borderColor: 'var(--border)',
-                      color: 'var(--text-primary)',
-                      lineHeight: '1.6',
-                    }}
-                  >
-                    {caseStudy.featuredText || <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>No featured text set</span>}
+                  <p className="text-sm p-3 rounded-md border border-border bg-background text-foreground leading-relaxed">
+                    {caseStudy.featuredText || <span className="text-muted-foreground italic">No featured text set</span>}
                   </p>
                 )}
               </div>
 
               {/* Products */}
               <div>
-                <p
-                  className="text-xs font-medium uppercase tracking-wider mb-2"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
+                <p className="text-xs font-medium uppercase tracking-wider mb-2 text-muted-foreground">
                   Vercel Products
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {caseStudy.products.map((product, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-1 rounded text-xs"
-                      style={{
-                        backgroundColor: 'var(--background-primary)',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid var(--border)',
-                      }}
-                    >
+                    <Badge key={idx} variant="secondary">
                       {product}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}

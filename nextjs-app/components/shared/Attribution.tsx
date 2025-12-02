@@ -15,18 +15,12 @@ export function Attribution({ date, by }: AttributionProps) {
   const formattedDate = formatHumanDate(date);
 
   return (
-    <span
-      className="font-mono"
-      style={{
-        fontSize: '12px',
-        color: '#a1a1a1'
-      }}
-    >
-      <span style={{ color: '#fafafa' }}>{formattedDate}</span>
+    <span className="font-mono text-xs text-muted-foreground">
+      <span className="text-foreground">{formattedDate}</span>
       {by && (
         <>
           <span> by </span>
-          <span style={{ color: '#fafafa' }}>{by}</span>
+          <span className="text-foreground">{by}</span>
         </>
       )}
     </span>

@@ -151,14 +151,7 @@ export function getThresholdForClassification(
       // Duplicates are handled deterministically by CRM check before this is called
       // Return 0 to always pass threshold if this is somehow reached
       return 0;
-    case 'customer-reroute':
-      // Customer reroutes don't have thresholds - they're manually triggered
-      return 0;
-    case 'support-reroute':
-      // Support reroutes don't have thresholds - they're manually triggered by support team
-      return 0;
-    case 'sales-reroute':
-      // Sales reroutes don't have thresholds - they're manually triggered by sales team
+    default:
       return 0;
   }
 }

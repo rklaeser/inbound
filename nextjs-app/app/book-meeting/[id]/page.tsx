@@ -59,22 +59,22 @@ export default function BookMeetingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background-primary)' }}>
-        <div style={{ color: 'var(--text-secondary)' }}>Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background-primary)' }}>
-        <div style={{ color: 'var(--text-secondary)' }}>{error}</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background-primary)' }}>
+    <div className="min-h-screen bg-background">
       {/* Background decoration */}
       <div
         className="absolute inset-0 overflow-hidden pointer-events-none"
@@ -84,10 +84,10 @@ export default function BookMeetingPage() {
       />
 
       {/* Header Bar */}
-      <div className="absolute top-0 left-0 right-0 p-6 z-10 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="absolute top-0 left-0 right-0 p-6 z-10 border-b border-border">
         <div className="flex items-center gap-2">
           <VercelLogo height={20} />
-          <span className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
+          <span className="text-base font-medium text-foreground">
             Vercel Sales
           </span>
         </div>
@@ -98,17 +98,11 @@ export default function BookMeetingPage() {
           {booked ? (
             <div>
               {/* Success Icon */}
-              <div
-                className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6"
-                style={{
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '1px solid rgba(34, 197, 94, 0.3)',
-                }}
-              >
+              <div className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6 bg-green-500/10 border border-green-500/30">
                 <svg
-                  className="w-10 h-10"
+                  className="w-10 h-10 text-green-500"
                   fill="none"
-                  stroke="#22c55e"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <path
@@ -119,33 +113,21 @@ export default function BookMeetingPage() {
                   />
                 </svg>
               </div>
-              <h1
-                className="text-2xl sm:text-3xl font-semibold mb-3"
-                style={{
-                  color: 'var(--text-primary)',
-                  letterSpacing: '-0.01em',
-                }}
-              >
+              <h1 className="text-2xl sm:text-3xl font-semibold mb-3 text-foreground tracking-tight">
                 Meeting Booked!
               </h1>
-              <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+              <p className="text-muted-foreground leading-relaxed">
                 Thank you for scheduling a meeting with us. We'll be in touch shortly.
               </p>
             </div>
           ) : (
             <div>
               {/* Calendar Icon */}
-              <div
-                className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6"
-                style={{
-                  background: 'rgba(0, 112, 243, 0.1)',
-                  border: '1px solid rgba(0, 112, 243, 0.3)',
-                }}
-              >
+              <div className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-6 bg-blue-500/10 border border-blue-500/30">
                 <svg
-                  className="w-10 h-10"
+                  className="w-10 h-10 text-blue-500"
                   fill="none"
-                  stroke="#0070f3"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <path
@@ -156,26 +138,17 @@ export default function BookMeetingPage() {
                   />
                 </svg>
               </div>
-              <h1
-                className="text-2xl sm:text-3xl font-semibold mb-3"
-                style={{
-                  color: 'var(--text-primary)',
-                  letterSpacing: '-0.01em',
-                }}
-              >
+              <h1 className="text-2xl sm:text-3xl font-semibold mb-3 text-foreground tracking-tight">
                 Let's Talk
               </h1>
-              <p className="mb-8" style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+              <p className="mb-8 text-muted-foreground leading-relaxed">
                 Ready to learn how Vercel can help your team ship faster?
               </p>
               <Button
                 onClick={handleBookMeeting}
                 disabled={booking}
+                variant="info"
                 className="px-8 py-3 text-base font-medium"
-                style={{
-                  background: '#0070f3',
-                  color: '#fff',
-                }}
               >
                 {booking ? 'Booking...' : 'Book a Meeting'}
               </Button>

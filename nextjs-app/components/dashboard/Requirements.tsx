@@ -40,7 +40,7 @@ export default function Requirements() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <div className="text-sm text-muted-foreground">
           Loading requirements...
         </div>
       </div>
@@ -49,14 +49,8 @@ export default function Requirements() {
 
   if (error) {
     return (
-      <div
-        className="p-4 rounded-md border"
-        style={{
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          borderColor: '#ef4444'
-        }}
-      >
-        <p className="text-sm" style={{ color: '#ef4444' }}>
+      <div className="p-4 rounded-md border border-destructive bg-destructive/10">
+        <p className="text-sm text-destructive">
           Error: {error}
         </p>
       </div>
@@ -70,27 +64,24 @@ export default function Requirements() {
       return (
         <div key={section.title} className={level === 0 ? 'mb-6' : 'mb-4'}>
           {section.title && (
-            <h3
-              className={`font-semibold mb-3 ${level === 0 ? 'text-xl' : 'text-lg'}`}
-              style={{ color: 'var(--text-primary)' }}
-            >
+            <h3 className={`font-semibold mb-3 text-foreground ${level === 0 ? 'text-xl' : 'text-lg'}`}>
               {section.title}
             </h3>
           )}
           <div className={level === 0 ? 'space-y-3' : 'space-y-2 pl-4'}>
             {typeof section.content === 'string' ? (
-              <div className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              <div className="leading-relaxed text-muted-foreground">
                 {section.content}
               </div>
             ) : (
               section.content.map((subsection, idx) => (
                 <div key={idx}>
                   {subsection.title && (
-                    <div className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+                    <div className="font-medium mb-1 text-foreground">
                       {subsection.title}
                     </div>
                   )}
-                  <div className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  <div className="leading-relaxed text-muted-foreground">
                     {typeof subsection.content === 'string' ? subsection.content : renderSection(subsection, level + 1)}
                   </div>
                 </div>
@@ -104,11 +95,11 @@ export default function Requirements() {
     return (
       <div key={section.title} className="mb-6">
         {section.title && (
-          <h3 className="text-xl font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+          <h3 className="text-xl font-semibold mb-3 text-foreground">
             {section.title}
           </h3>
         )}
-        <p className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        <p className="leading-relaxed text-muted-foreground">
           {typeof section.content === 'string' ? section.content : null}
         </p>
       </div>
@@ -116,20 +107,13 @@ export default function Requirements() {
   };
 
   return (
-    <div
-      className="rounded-md border p-6 overflow-auto"
-      style={{
-        backgroundColor: 'var(--background-secondary)',
-        borderColor: 'var(--border-custom)',
-        maxHeight: 'calc(100vh - 300px)',
-      }}
-    >
+    <div className="rounded-md border border-border bg-card p-6 overflow-auto max-h-[calc(100vh-300px)]">
       {requirements ? (
         <div>
-          <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-2xl font-bold mb-2 text-foreground">
             {requirements.title}
           </h1>
-          <p className="mb-6 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          <p className="mb-6 leading-relaxed text-muted-foreground">
             {requirements.description}
           </p>
           <div className="space-y-6">
@@ -139,7 +123,7 @@ export default function Requirements() {
           </div>
         </div>
       ) : (
-        <div className="text-center" style={{ color: 'var(--text-secondary)' }}>
+        <div className="text-center text-muted-foreground">
           <p>No requirements available.</p>
         </div>
       )}

@@ -1,7 +1,8 @@
 'use server';
 
 import { adminDb } from '@/lib/db';
-import type { Lead, ClassificationEntry } from '@/lib/types';
+import type { Lead, Reroute, RerouteSource } from '@/lib/types';
+import { getTerminalState } from '@/lib/types';
 
 export type FeedbackState = {
   success: boolean;
@@ -63,25 +64,25 @@ export async function submitFeedback(
       return { success: false, error: 'Feedback is only available for support or duplicate classifications' };
     }
 
+    // Check if already rerouted
+    if (lead.reroute) {
+      return { success: false, error: 'This lead has already been rerouted' };
+    }
+
     const now = new Date();
 
-    // Determine classification type based on source
-    const classificationTypeMap: Record<string, 'customer-reroute' | 'support-reroute' | 'sales-reroute'> = {
-      customer: 'customer-reroute',
-      support: 'support-reroute',
-      sales: 'sales-reroute',
-    };
-    const classificationType = classificationTypeMap[source];
+    // Get the current terminal state before we clear it
+    const currentTerminalState = getTerminalState(lead);
 
-    // Create new classification entry
-    const newClassificationEntry: ClassificationEntry = {
-      author: 'human',
-      classification: classificationType,
+    // Create reroute entry (preserves original classification and what was sent)
+    const reroute: Reroute = {
+      id: crypto.randomUUID(),
+      source: source as RerouteSource,
+      reason: reason?.trim() || undefined,
+      originalClassification: currentClassification,
+      previousTerminalState: currentTerminalState || undefined,
       timestamp: now,
     };
-
-    // Update the lead
-    const updatedClassifications = [newClassificationEntry, ...lead.classifications];
 
     // Build the note prefix based on source
     const sourceLabels: Record<string, string> = {
@@ -97,13 +98,16 @@ export async function submitFeedback(
     // Customer feedback goes to review, internal feedback goes to classify
     const newStatus = source === 'customer' ? 'review' : 'classify';
 
+    // Update lead with reroute and clear terminal state (acts like never sent)
     await adminDb.collection('leads').doc(leadId).update({
-      classifications: updatedClassifications,
+      reroute,
       'status.status': newStatus,
+      'status.sent_at': null,
+      'status.sent_by': null,
       edit_note: noteContent,
     });
 
-    console.log(`Lead ${leadId} feedback from ${source}. Previous classification: ${currentClassification}`);
+    console.log(`Lead ${leadId} rerouted by ${source}. Original classification: ${currentClassification}`);
 
     return { success: true };
   } catch (error) {

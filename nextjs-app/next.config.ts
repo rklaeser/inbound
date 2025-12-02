@@ -2,6 +2,15 @@ import type { NextConfig } from "next";
 import { withWorkflow } from "workflow/next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'vercel.com',
+        pathname: '/api/www/avatar/**',
+      },
+    ],
+  },
   serverExternalPackages: [
     'firebase-admin',
     '@google-cloud/firestore'

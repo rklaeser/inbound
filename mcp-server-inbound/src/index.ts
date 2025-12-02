@@ -45,9 +45,27 @@ type Classification =
   | 'high-quality'      // Strong fit, gets personalized meeting offer email
   | 'low-quality'       // Not a fit or spam/nonsense, gets generic sales email
   | 'support'           // Existing customer needing help, forwarded to support
-  | 'duplicate'         // Already a customer in CRM, forwarded to account team
-  | 'customer-reroute'  // Customer disputed support/duplicate classification via escape hatch
-  | 'internal-reroute'; // Internal team (support/account) disputed classification
+  | 'duplicate';        // Already a customer in CRM, forwarded to account team
+
+// Terminal state - derived from status + classification when status = 'done'
+type TerminalState =
+  | 'sent_meeting_offer'      // high-quality lead, personalized email sent
+  | 'sent_generic'            // low-quality lead, generic sales email sent
+  | 'forwarded_support'       // support lead, forwarded to support team
+  | 'forwarded_account_team'; // duplicate lead, forwarded to account team
+
+// Reroute source - who initiated the reroute
+type RerouteSource = 'customer' | 'support' | 'sales';
+
+// Reroute entry - feedback from customer or internal team that the classification was wrong
+interface Reroute {
+  id: string;
+  source: RerouteSource;
+  reason?: string;
+  originalClassification: Classification;
+  previousTerminalState?: TerminalState;
+  timestamp: admin.firestore.Timestamp;
+}
 
 // Status types - where is this lead in the workflow?
 type LeadStatus = 'classify' | 'review' | 'done';
@@ -141,6 +159,7 @@ interface Lead {
     markedSelfService: boolean;
     timestamp: admin.firestore.Timestamp;
   };
+  reroute?: Reroute;
 }
 
 // Case Study types
@@ -277,6 +296,15 @@ function formatLead(lead: any, includeFullDetails: boolean = false): any {
       markedSelfService: lead.supportFeedback.markedSelfService,
       timestamp: formatTimestamp(lead.supportFeedback.timestamp),
     } : null,
+    // Reroute information
+    reroute: lead.reroute ? {
+      id: lead.reroute.id,
+      source: lead.reroute.source,
+      reason: lead.reroute.reason || null,
+      originalClassification: lead.reroute.originalClassification,
+      previousTerminalState: lead.reroute.previousTerminalState || null,
+      timestamp: formatTimestamp(lead.reroute.timestamp),
+    } : null,
   };
 }
 
@@ -309,8 +337,6 @@ function determineWorkflowStatus(lead: any): {
       'low-quality': 'Generic sales email sent',
       'support': 'Forwarded to support team',
       'duplicate': 'Forwarded to account team',
-      'customer-reroute': 'Customer reroute - needs SDR review',
-      'internal-reroute': 'Internal reroute - needs SDR review',
     };
     nextAction = actionMap[currentClassification] || info.action;
   }
@@ -406,7 +432,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             classification: {
               type: 'string',
               description: 'Filter by current classification type',
-              enum: ['high-quality', 'low-quality', 'support', 'duplicate', 'customer-reroute', 'internal-reroute'],
+              enum: ['high-quality', 'low-quality', 'support', 'duplicate'],
             },
             limit: {
               type: 'number',

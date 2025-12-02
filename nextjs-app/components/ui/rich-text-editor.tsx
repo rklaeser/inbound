@@ -50,14 +50,14 @@ export function RichTextEditor({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-blue-500 underline',
+          class: 'text-blue-500 dark:text-blue-400 underline',
         },
       }),
     ],
     content: initialContent,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm prose-invert max-w-none focus:outline-none min-h-[60px] px-3 py-2',
+        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[60px] px-3 py-2',
       },
     },
     onUpdate: ({ editor }) => {
@@ -112,7 +112,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={`border rounded-md ${className}`} style={{ borderColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0a0a0a' }}>
+    <div className={`border border-border rounded-md bg-background ${className}`}>
       <style>{`
         .ProseMirror p {
           margin-bottom: 1em;
@@ -122,7 +122,7 @@ export function RichTextEditor({
         }
       `}</style>
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border">
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
@@ -146,7 +146,7 @@ export function RichTextEditor({
         </ToolbarButton>
 
         {/* Save status indicator */}
-        <div className="ml-auto text-xs" style={{ color: '#666' }}>
+        <div className="ml-auto text-xs text-muted-foreground">
           {saveStatus === 'saving' && 'Saving...'}
           {saveStatus === 'saved' && 'Saved'}
           {saveStatus === 'unsaved' && 'Unsaved changes'}
@@ -175,11 +175,11 @@ function ToolbarButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="p-1.5 rounded transition-colors"
-      style={{
-        backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
-        color: isActive ? '#fafafa' : '#888',
-      }}
+      className={`p-1.5 rounded transition-colors ${
+        isActive
+          ? 'bg-muted text-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+      }`}
     >
       {children}
     </button>

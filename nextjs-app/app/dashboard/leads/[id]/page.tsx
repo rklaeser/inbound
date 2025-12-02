@@ -8,6 +8,7 @@ import type { Lead, Classification, Configuration } from '@/lib/types';
 import { getCurrentClassification, DEFAULT_CONFIGURATION, getClassificationDisplay, CLASSIFICATIONS, getClassificationLabel } from '@/lib/types';
 import { extractFirstName, getBaseUrl } from '@/lib/email/helpers';
 import { calculateTTR } from '@/lib/date-utils';
+import { getSDRAvatarUrl } from '@/lib/sdr-profiles';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { CaseStudyEditor } from '@/components/dashboard/CaseStudyEditor';
 import { ChevronRight, Check } from 'lucide-react';
@@ -312,8 +313,8 @@ export default function LeadDetailPage({
     return (
       <div className="p-8">
         <div className="space-y-6">
-          <div className="h-8 bg-[#0a0a0a] rounded-md w-1/3 animate-pulse"></div>
-          <div className="h-64 bg-[#0a0a0a] rounded-md animate-pulse"></div>
+          <div className="h-8 bg-muted rounded-md w-1/3 animate-pulse"></div>
+          <div className="h-64 bg-muted rounded-md animate-pulse"></div>
         </div>
       </div>
     );
@@ -340,11 +341,10 @@ export default function LeadDetailPage({
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
             <h1
-              className="font-semibold"
+              className="font-semibold text-foreground"
               style={{
                 fontSize: '24px',
                 lineHeight: '1.2',
-                color: '#fafafa',
                 fontWeight: 600
               }}
             >
@@ -367,10 +367,9 @@ export default function LeadDetailPage({
 
         {/* Contact info */}
         <div
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 text-muted-foreground"
           style={{
             fontSize: '13px',
-            color: '#a1a1a1',
             lineHeight: '1.6'
           }}
         >
@@ -389,10 +388,9 @@ export default function LeadDetailPage({
 
         {/* Message */}
         <div
-          className="mt-3"
+          className="mt-3 text-foreground"
           style={{
             fontSize: '13px',
-            color: '#fafafa',
             lineHeight: '1.6',
             whiteSpace: 'pre-wrap'
           }}
@@ -400,8 +398,8 @@ export default function LeadDetailPage({
           {lead.submission.message}
         </div>
 
-        {/* Customer Reroute Additional Context */}
-        {getCurrentClassification(lead) === 'customer-reroute' && lead.edit_note && (
+        {/* Reroute Information */}
+        {lead.reroute && (
           <div
             className="mt-4 p-4 rounded-md border"
             style={{
@@ -416,17 +414,25 @@ export default function LeadDetailPage({
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              Customer Reroute - Additional Context
+              Rerouted by {lead.reroute.source === 'customer' ? 'Customer' : lead.reroute.source === 'support' ? 'Support Team' : 'Sales Team'}
             </div>
-            <div
-              style={{
-                fontSize: '13px',
-                color: '#fafafa',
-                lineHeight: '1.6',
-                whiteSpace: 'pre-wrap'
-              }}
-            >
-              {lead.edit_note.replace('[Customer Reroute] ', '')}
+            <div className="space-y-2" style={{ fontSize: '13px', lineHeight: '1.6' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Original classification:</span>
+                <span className="text-foreground">{getClassificationLabel(lead.reroute.originalClassification)}</span>
+              </div>
+              {lead.reroute.previousTerminalState && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Previous action:</span>
+                  <span className="text-foreground">{lead.reroute.previousTerminalState.replace(/_/g, ' ')}</span>
+                </div>
+              )}
+              {lead.reroute.reason && (
+                <div>
+                  <span className="text-muted-foreground">Reason: </span>
+                  <span className="text-foreground" style={{ whiteSpace: 'pre-wrap' }}>{lead.reroute.reason}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -507,57 +513,48 @@ export default function LeadDetailPage({
       <div className="space-y-4">
         {/* Research & Classification */}
         {lead.bot_research && (
-          <Section title="Research Report">
-            {/* AI Classification Decision */}
-            {getCurrentClassification(lead) && (
-              <div className="mb-4 pb-4 border-b border-[rgba(255,255,255,0.06)]">
-                <div className="flex items-center gap-3 mb-3">
+          <Section
+            title="Research Report"
+            titleExtra={
+              <div className="flex items-center gap-3">
+                {getCurrentClassification(lead) && (
                   <ClassificationBadge lead={lead} onReclassify={handleReclassifyTo} />
-                  {lead.bot_research.confidence && (
-                    <span
-                      className="font-mono font-semibold"
-                      style={{
-                        fontSize: '14px',
-                        color: '#a1a1a1'
-                      }}
-                    >
-                      {(lead.bot_research.confidence * 100).toFixed(0)}% confidence
-                    </span>
-                  )}
-                  {lead.bot_research.existingCustomer !== undefined && (
-                    <span
-                      className="px-2 py-0.5 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: lead.bot_research.existingCustomer
-                          ? 'rgba(168, 85, 247, 0.1)'
-                          : 'rgba(161, 161, 161, 0.1)',
-                        color: lead.bot_research.existingCustomer ? '#a855f7' : '#a1a1a1',
-                        border: `1px solid ${lead.bot_research.existingCustomer
-                          ? 'rgba(168, 85, 247, 0.2)'
-                          : 'rgba(161, 161, 161, 0.2)'}`,
-                      }}
-                    >
-                      {lead.bot_research.existingCustomer ? 'Existing Customer' : 'New Lead'}
-                    </span>
-                  )}
-                  {lead.bot_research.timestamp && (
-                    <span style={{ marginLeft: 'auto' }}>
-                      <Attribution date={lead.bot_research.timestamp} by={null} />
-                    </span>
-                  )}
-                </div>
-                {lead.bot_research.reasoning && (
-                  <p
+                )}
+                {lead.bot_research.confidence && (
+                  <span
+                    className="font-mono"
                     style={{
-                      fontSize: '13px',
-                      color: '#d4d4d4',
-                      lineHeight: '1.6',
-                      fontStyle: 'italic'
+                      fontSize: '12px',
+                      color: '#a1a1a1'
                     }}
                   >
-                    {lead.bot_research.reasoning}
-                  </p>
+                    {(lead.bot_research.confidence * 100).toFixed(0)}% confidence
+                  </span>
                 )}
+              </div>
+            }
+            rightContent={
+              <div className="flex items-center gap-3">
+                {lead.bot_research.timestamp && (
+                  <Attribution date={lead.bot_research.timestamp} by={null} />
+                )}
+                <span title="Generated by AI">🤖</span>
+              </div>
+            }
+          >
+            {/* AI Reasoning */}
+            {getCurrentClassification(lead) && lead.bot_research.reasoning && (
+              <div className="mb-4 pb-4 border-b border-border">
+                <p
+                  className="text-muted-foreground"
+                  style={{
+                    fontSize: '13px',
+                    lineHeight: '1.6',
+                    fontStyle: 'italic'
+                  }}
+                >
+                  {lead.bot_research.reasoning}
+                </p>
               </div>
             )}
 
@@ -577,7 +574,7 @@ export default function LeadDetailPage({
 
                 {isResearchExpanded && (
                   <div
-                    className="mt-3 bg-[#000000] border border-[rgba(255,255,255,0.06)] rounded-md p-4 prose prose-invert prose-sm max-w-none"
+                    className="mt-3 bg-background border border-border rounded-md p-4 prose prose-sm max-w-none dark:prose-invert"
                   >
                     <ReactMarkdown
                       components={{
@@ -604,7 +601,7 @@ export default function LeadDetailPage({
         {/* Email - Show for all classified leads (wait for configuration) */}
         {getCurrentClassification(lead) && configuration && (
           <Section
-            title={`Email to <${lead.submission.email}>`}
+            title="Email"
             rightContent={lead.status.status === 'done' ? (
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md"
@@ -617,30 +614,44 @@ export default function LeadDetailPage({
                 <Check className="h-3.5 w-3.5" />
                 <span style={{ fontSize: '12px', fontWeight: 500 }}>Sent</span>
               </div>
-            ) : undefined}
-          >
-            {/* Subject line - always visible, not editable */}
-            {getEmailSubject() && (
-              <div
-                className="mb-4 pb-3 border-b border-[rgba(255,255,255,0.06)]"
+            ) : (
+              <Button
+                onClick={handleApprove}
+                disabled={isSending}
+                size="sm"
+                variant="light"
               >
-                <div
-                  className="flex items-center gap-2"
-                  style={{ fontSize: '12px', color: '#666' }}
-                >
-                  <span>Subject:</span>
+                {isSending ? 'Sending...' : getReplyButtonText()}
+              </Button>
+            )}
+          >
+            {/* Email metadata - From, To, Subject */}
+            <div
+              className="mb-4 pb-3 border-b border-border space-y-1"
+              style={{ fontSize: '12px', color: '#666' }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-12">From:</span>
+                <span style={{ color: '#a1a1a1' }}>{configuration.sdr?.email || 'ryan@vercel.com'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-12">To:</span>
+                <span style={{ color: '#a1a1a1' }}>{lead.submission.email}</span>
+              </div>
+              {getEmailSubject() && (
+                <div className="flex items-center gap-2">
+                  <span className="w-12">Subject:</span>
                   <span style={{ color: '#a1a1a1' }}>{getEmailSubject()}</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Done state: Show sent email as read-only */}
             {lead.status.status === 'done' && (
               <div
-                className="max-w-none [&_p]:mb-3 [&_p:last-child]:mb-0 [&_a]:text-blue-400 [&_a]:underline"
+                className="max-w-none [&_p]:mb-3 [&_p:last-child]:mb-0 [&_a]:text-blue-400 [&_a]:underline text-muted-foreground"
                 style={{
                   fontSize: '13px',
-                  color: '#d4d4d4',
                   lineHeight: '1.6',
                 }}
                 dangerouslySetInnerHTML={{ __html: getEmailForClassification() ?? '' }}
@@ -652,47 +663,25 @@ export default function LeadDetailPage({
               <>
                 {/* High-quality: Always show editor */}
                 {getCurrentClassification(lead) === 'high-quality' && (
-                  <div className="space-y-4">
-                    <RichTextEditor
-                      initialContent={getEmailForClassification() ?? ''}
-                      onSave={handleEmailSave}
-                    />
-                    <div className="flex justify-end">
-                      <Button
-                        onClick={handleApprove}
-                        disabled={isSending}
-                        size="sm"
-                        variant="light"
-                      >
-                        {isSending ? 'Sending...' : getReplyButtonText()}
-                      </Button>
-                    </div>
-                  </div>
+                  <RichTextEditor
+                    initialContent={getEmailForClassification() ?? ''}
+                    onSave={handleEmailSave}
+                  />
                 )}
 
                 {/* Non-high-quality: Collapsible with chevron */}
                 {getCurrentClassification(lead) !== 'high-quality' && (
                   <div className="space-y-4">
-                    {/* Collapsed header with expand toggle and reply button */}
-                    <div className="flex items-center justify-between">
-                      <button
-                        onClick={() => setIsEmailExpanded(!isEmailExpanded)}
-                        className="flex items-center gap-2 text-sm text-[#a1a1a1] hover:text-[#fafafa] transition-colors"
-                      >
-                        <ChevronRight
-                          className={`h-4 w-4 transition-transform ${isEmailExpanded ? 'rotate-90' : ''}`}
-                        />
-                        <span>{isEmailExpanded ? 'Hide email preview' : 'Show email preview'}</span>
-                      </button>
-                      <Button
-                        onClick={handleApprove}
-                        disabled={isSending}
-                        size="sm"
-                        variant="light"
-                      >
-                        {isSending ? 'Sending...' : getReplyButtonText()}
-                      </Button>
-                    </div>
+                    {/* Expand toggle */}
+                    <button
+                      onClick={() => setIsEmailExpanded(!isEmailExpanded)}
+                      className="flex items-center gap-2 text-sm text-[#a1a1a1] hover:text-[#fafafa] transition-colors"
+                    >
+                      <ChevronRight
+                        className={`h-4 w-4 transition-transform ${isEmailExpanded ? 'rotate-90' : ''}`}
+                      />
+                      <span>{isEmailExpanded ? 'Hide email preview' : 'Show email preview'}</span>
+                    </button>
 
                     {/* Expandable editor */}
                     {isEmailExpanded && (
@@ -760,10 +749,9 @@ export default function LeadDetailPage({
             )}
           >
             <div
-              className="max-w-none [&_p]:mb-3 [&_p:last-child]:mb-0 [&_a]:text-blue-400 [&_a]:underline"
+              className="max-w-none [&_p]:mb-3 [&_p:last-child]:mb-0 [&_a]:text-blue-400 [&_a]:underline text-muted-foreground"
               style={{
                 fontSize: '13px',
-                color: '#d4d4d4',
                 lineHeight: '1.6',
               }}
               dangerouslySetInnerHTML={{ __html: getInternalEmailForClassification() ?? '' }}
@@ -903,8 +891,8 @@ export default function LeadDetailPage({
           highlight={highlightTimeline}
           rightContent={
             lead.status.sent_at && (
-              <span className="font-mono" style={{ fontSize: '12px', color: '#a1a1a1' }}>
-                Time to Response: <span style={{ color: '#fafafa' }}>{calculateTTR(lead.status.received_at, lead.status.sent_at)}</span>
+              <span className="font-mono text-muted-foreground" style={{ fontSize: '12px' }}>
+                Time to Response: <span className="text-foreground">{calculateTTR(lead.status.received_at, lead.status.sent_at)}</span>
               </span>
             )
           }
@@ -939,23 +927,13 @@ export default function LeadDetailPage({
                 }
               }
 
-              // Determine actor based on classification type
-              // Reroutes show the team they're forwarded to, not the person who classified
+              // Determine actor based on classification author
               let actor: string;
               let avatar: string | 'bot' | 'system';
 
               if (c.author === 'bot') {
                 actor = 'Bot';
                 avatar = 'bot';
-              } else if (c.classification === 'support' || c.classification === 'support-reroute') {
-                actor = 'Support Team';
-                avatar = 'system';
-              } else if (c.classification === 'duplicate' || c.classification === 'sales-reroute') {
-                actor = 'Sales Team';
-                avatar = 'system';
-              } else if (c.classification === 'customer-reroute') {
-                actor = 'Customer';
-                avatar = 'system';
               } else {
                 actor = configuration?.sdr?.name || DEFAULT_CONFIGURATION.sdr.name;
                 avatar = configuration?.sdr?.avatar || DEFAULT_CONFIGURATION.sdr.avatar || 'system';
@@ -995,11 +973,16 @@ export default function LeadDetailPage({
               if (sentBy === 'system') {
                 // Deterministic rule (duplicate)
                 sentReason = 'Auto-forwarded by system rule (existing customer detected)';
-              } else if (sentBy === 'bot' && lead.bot_research && lead.bot_rollout) {
-                // AI auto-send
+              } else if (sentBy === 'bot' && lead.bot_research) {
+                // AI auto-send - find the bot classification to get the applied threshold
+                const botClassification = lead.classifications.find(c => c.author === 'bot');
                 const confidencePct = Math.round(lead.bot_research.confidence * 100);
-                const thresholdPct = Math.round(lead.bot_rollout.rollOut * 100);
-                sentReason = `Auto-sent: ${confidencePct}% confidence exceeded ${thresholdPct}% threshold`;
+                if (botClassification?.applied_threshold) {
+                  const thresholdPct = Math.round(botClassification.applied_threshold * 100);
+                  sentReason = `Auto-sent: ${confidencePct}% confidence exceeded ${thresholdPct}% threshold`;
+                } else {
+                  sentReason = `Auto-sent: ${confidencePct}% confidence`;
+                }
               }
               // Human-sent doesn't need a reason - it was their explicit action
 
@@ -1008,7 +991,7 @@ export default function LeadDetailPage({
                   label="Sent"
                   timestamp={lead.status.sent_at}
                   actor={sentBy === 'bot' ? 'Lead Agent' : sentBy === 'system' ? 'System' : sentBy || undefined}
-                  avatar={sentBy === 'system' ? 'system' : sentBy === 'bot' ? 'bot' : undefined}
+                  avatar={sentBy === 'system' ? 'system' : sentBy === 'bot' ? 'bot' : sentBy ? getSDRAvatarUrl(sentBy) : undefined}
                   reason={sentReason}
                 />
               );
@@ -1084,12 +1067,14 @@ function StageIndicator({ status }: { status: string }) {
 
 function Section({
   title,
+  titleExtra,
   rightContent,
   children,
   id,
   highlight,
 }: {
   title: string;
+  titleExtra?: React.ReactNode;
   rightContent?: React.ReactNode;
   children: React.ReactNode;
   id?: string;
@@ -1098,23 +1083,26 @@ function Section({
   return (
     <div
       id={id}
-      className={`bg-[#0a0a0a] border rounded-md p-4 ${highlight ? 'animate-pulse-border' : ''}`}
+      className={`bg-card border border-border rounded-md p-4 ${highlight ? 'animate-pulse-border' : ''}`}
       style={{
-        borderColor: highlight ? 'rgba(59, 130, 246, 0.5)' : 'rgba(255,255,255,0.1)',
+        borderColor: highlight ? 'rgba(59, 130, 246, 0.5)' : undefined,
         transition: 'border-color 0.3s ease'
       }}
     >
       <div className="flex items-center justify-between mb-3">
-        <h2
-          className="font-sans"
-          style={{
-            fontSize: '14px',
-            fontWeight: 600,
-            color: '#fafafa',
-          }}
-        >
-          {title}
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2
+            className="font-sans text-foreground"
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              lineHeight: '28px',
+            }}
+          >
+            {title}
+          </h2>
+          {titleExtra}
+        </div>
         {rightContent}
       </div>
       {children}
@@ -1138,17 +1126,16 @@ function TimelineItem({
   return (
     <div className="flex gap-3">
       <div
-        className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5"
-        style={{ backgroundColor: '#525252' }}
+        className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5 bg-muted-foreground"
       />
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <span style={{ fontSize: '13px', color: '#fafafa' }}>{label}</span>
-          <span style={{ fontSize: '12px', color: '#525252' }}>·</span>
+          <span className="text-foreground" style={{ fontSize: '13px' }}>{label}</span>
+          <span className="text-muted-foreground/50" style={{ fontSize: '12px' }}>·</span>
           <Attribution date={timestamp} />
           {actor && (
             <span className="flex items-center gap-1.5" style={{ fontSize: '12px' }}>
-              <span style={{ color: '#666' }}>by</span>
+              <span className="text-muted-foreground">by</span>
               {avatar === 'bot' ? (
                 <span style={{ fontSize: '14px' }}>🤖</span>
               ) : avatar === 'system' ? (
@@ -1161,12 +1148,12 @@ function TimelineItem({
                   style={{ objectFit: 'cover' }}
                 />
               ) : null}
-              <span style={{ color: '#fafafa' }}>{actor}</span>
+              <span className="text-foreground">{actor}</span>
             </span>
           )}
         </div>
         {reason && (
-          <p style={{ fontSize: '11px', color: '#666', marginLeft: '0' }}>
+          <p className="text-muted-foreground" style={{ fontSize: '11px' }}>
             {reason}
           </p>
         )}
@@ -1182,9 +1169,6 @@ function getClassificationColor(classification: Classification): string {
     'low-quality': '161, 161, 161',     // gray
     'support': '59, 130, 246',          // blue-500
     'duplicate': '168, 85, 247',        // purple-500
-    'customer-reroute': '245, 158, 11', // amber-500
-    'support-reroute': '6, 182, 212',   // cyan-500
-    'sales-reroute': '236, 72, 153',    // pink-500
   };
   return colors[classification] || '161, 161, 161';
 }
@@ -1205,50 +1189,37 @@ function ClassificationBadge({ lead, onReclassify }: { lead: Lead; onReclassify:
   );
 
   return (
-    <div className="inline-flex rounded-md shadow-sm">
-      <span
-        className="inline-flex items-center px-3 py-1 rounded-l-md border border-r-0"
-        style={{
-          fontSize: '12px',
-          fontWeight: 500,
-          backgroundColor: colors.background,
-          color: colors.text,
-          borderColor: colors.border,
-          transition: 'all 0.15s ease'
-        }}
-      >
-        {display.label}
-      </span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className="inline-flex items-center px-1.5 py-1 rounded-r-md border rounded-l-none cursor-pointer hover:bg-[rgba(255,255,255,0.05)]"
-            style={{
-              backgroundColor: 'transparent',
-              borderColor: 'rgba(255,255,255,0.1)',
-              color: '#a1a1a1',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <ChevronDown className="h-3 w-3" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {otherClassifications.map((key) => {
-            const config = CLASSIFICATIONS[key];
-            return (
-              <DropdownMenuItem
-                key={key}
-                onClick={() => onReclassify(key)}
-                className="flex items-center gap-2"
-              >
-                <span style={{ color: config.colors.text }}>{config.label}</span>
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border cursor-pointer transition-opacity hover:opacity-80"
+          style={{
+            fontSize: '12px',
+            fontWeight: 500,
+            backgroundColor: colors.background,
+            color: colors.text,
+            borderColor: colors.border,
+          }}
+        >
+          {display.label}
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {otherClassifications.map((key) => {
+          const config = CLASSIFICATIONS[key];
+          return (
+            <DropdownMenuItem
+              key={key}
+              onClick={() => onReclassify(key)}
+              className="flex items-center gap-2"
+            >
+              <span style={{ color: config.colors.text }}>{config.label}</span>
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

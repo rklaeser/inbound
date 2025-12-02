@@ -62,9 +62,6 @@ interface AnalyticsData {
     'low-quality': number;
     support: number;
     duplicate: number;
-    'customer-reroute': number;
-    'support-reroute': number;
-    'sales-reroute': number;
   };
 
   autoSendRate: number;
@@ -119,6 +116,7 @@ export async function GET() {
     let salesReroutes = 0;
 
     leads.forEach((lead) => {
+      // Count terminal states
       const terminalState = getTerminalState(lead);
       switch (terminalState) {
         case "sent_meeting_offer":
@@ -133,30 +131,37 @@ export async function GET() {
         case "forwarded_account_team":
           forwardedAccountTeam++;
           break;
-        case "customer_reroute":
-          customerReroutes++;
-          break;
-        case "support_reroute":
-          supportReroutes++;
-          break;
-        case "sales_reroute":
-          salesReroutes++;
-          break;
+      }
+
+      // Count reroutes from the reroute field (not terminal states)
+      if (lead.reroute) {
+        switch (lead.reroute.source) {
+          case "customer":
+            customerReroutes++;
+            break;
+          case "support":
+            supportReroutes++;
+            break;
+          case "sales":
+            salesReroutes++;
+            break;
+        }
       }
     });
 
     // Classification breakdown (current classification)
+    // Rerouted leads are excluded since they represent misclassifications
     const classificationBreakdown: AnalyticsData["classificationBreakdown"] = {
       "high-quality": 0,
       "low-quality": 0,
       support: 0,
       duplicate: 0,
-      "customer-reroute": 0,
-      "support-reroute": 0,
-      "sales-reroute": 0,
     };
 
     leads.forEach((lead) => {
+      // Skip rerouted leads from classification breakdown
+      if (lead.reroute) return;
+
       const classification = getCurrentClassification(lead);
       if (classification && classification in classificationBreakdown) {
         classificationBreakdown[classification as keyof typeof classificationBreakdown]++;

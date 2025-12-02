@@ -10,10 +10,7 @@ export type Classification =
   | 'high-quality'      // Strong fit, gets personalized meeting offer email
   | 'low-quality'       // Not a fit or spam/nonsense, gets generic sales email
   | 'support'           // Existing customer needing help, forwarded to support
-  | 'duplicate'         // Already a customer in CRM, forwarded to account team
-  | 'customer-reroute'  // Customer disputed support/duplicate classification via escape hatch
-  | 'support-reroute'   // Support team disputed classification, needs SDR review
-  | 'sales-reroute';    // Sales/account team disputed classification, needs SDR review
+  | 'duplicate';        // Already a customer in CRM, forwarded to account team
 
 // Status types - where is this lead in the workflow?
 // processing: workflow is running (lead just submitted, AI processing in progress)
@@ -27,10 +24,24 @@ export type TerminalState =
   | 'sent_meeting_offer'      // high-quality lead, personalized email sent
   | 'sent_generic'            // low-quality lead, generic sales email sent
   | 'forwarded_support'       // support lead, forwarded to support team
-  | 'forwarded_account_team'  // duplicate lead, forwarded to account team
-  | 'customer_reroute'        // customer disputed classification, needs SDR review
-  | 'support_reroute'         // support team disputed classification, needs SDR review
-  | 'sales_reroute';          // sales team disputed classification, needs SDR review
+  | 'forwarded_account_team'; // duplicate lead, forwarded to account team
+
+// =============================================================================
+// REROUTE DATA MODEL
+// =============================================================================
+
+// Reroute source - who initiated the reroute
+export type RerouteSource = 'customer' | 'support' | 'sales';
+
+// Reroute entry - feedback from customer or internal team that the classification was wrong
+export interface Reroute {
+  id: string;
+  source: RerouteSource;
+  reason?: string;
+  originalClassification: Classification;
+  previousTerminalState?: TerminalState;  // What was sent before reroute (if any)
+  timestamp: Date | Timestamp;
+}
 
 // =============================================================================
 // CLASSIFICATION CONFIG (single source of truth for display)
@@ -45,11 +56,6 @@ export interface ClassificationConfig {
     background: string;
     border: string;
   };
-  action: {
-    short: string;  // Badge text (e.g., "Reply with Meeting")
-    long: string;   // Button text (e.g., "Reply with Meeting")
-    color: string;  // Action-specific color (may differ from classification color)
-  };
 }
 
 export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
@@ -58,14 +64,9 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
     label: 'High Quality',
     description: 'High-value lead with clear product-market fit',
     colors: {
-      text: '#22c55e',
-      background: 'rgba(34, 197, 94, 0.1)',
-      border: 'rgba(34, 197, 94, 0.2)',
-    },
-    action: {
-      short: 'Reply with Meeting',
-      long: 'Reply with Meeting',
-      color: '#22c55e',
+      text: '#16a34a',
+      background: 'rgba(34, 197, 94, 0.15)',
+      border: 'rgba(34, 197, 94, 0.35)',
     },
   },
   'low-quality': {
@@ -73,14 +74,9 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
     label: 'Low Quality',
     description: 'Real opportunity but not a good fit for personalized outreach',
     colors: {
-      text: '#a1a1a1',
-      background: 'rgba(161, 161, 161, 0.1)',
-      border: 'rgba(161, 161, 161, 0.2)',
-    },
-    action: {
-      short: 'Reply with Generic',
-      long: 'Reply with Generic',
-      color: '#a1a1a1',
+      text: '#525252',
+      background: 'rgba(115, 115, 115, 0.15)',
+      border: 'rgba(115, 115, 115, 0.35)',
     },
   },
   support: {
@@ -88,14 +84,9 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
     label: 'Support',
     description: 'Existing customer with support request',
     colors: {
-      text: '#3b82f6',
-      background: 'rgba(59, 130, 246, 0.1)',
-      border: 'rgba(59, 130, 246, 0.2)',
-    },
-    action: {
-      short: 'Forward Support',
-      long: 'Forward to Support',
-      color: '#3b82f6',
+      text: '#2563eb',
+      background: 'rgba(59, 130, 246, 0.15)',
+      border: 'rgba(59, 130, 246, 0.35)',
     },
   },
   duplicate: {
@@ -103,59 +94,9 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
     label: 'Duplicate',
     description: 'Duplicate submission from existing customer',
     colors: {
-      text: '#a855f7',
-      background: 'rgba(168, 85, 247, 0.1)',
-      border: 'rgba(168, 85, 247, 0.2)',
-    },
-    action: {
-      short: 'Forward Duplicate',
-      long: 'Forward to Account Team',
-      color: '#a855f7',
-    },
-  },
-  'customer-reroute': {
-    key: 'customer-reroute',
-    label: 'Customer Reroute',
-    description: 'Customer disputed support/duplicate classification',
-    colors: {
-      text: '#f59e0b',
-      background: 'rgba(245, 158, 11, 0.1)',
-      border: 'rgba(245, 158, 11, 0.2)',
-    },
-    action: {
-      short: 'Needs Review',
-      long: 'Review Reroute Request',
-      color: '#f59e0b',
-    },
-  },
-  'support-reroute': {
-    key: 'support-reroute',
-    label: 'Support Reroute',
-    description: 'Support team disputed classification',
-    colors: {
-      text: '#06b6d4',
-      background: 'rgba(6, 182, 212, 0.1)',
-      border: 'rgba(6, 182, 212, 0.2)',
-    },
-    action: {
-      short: 'Needs Review',
-      long: 'Review Support Reroute',
-      color: '#06b6d4',
-    },
-  },
-  'sales-reroute': {
-    key: 'sales-reroute',
-    label: 'Sales Reroute',
-    description: 'Sales team disputed classification',
-    colors: {
-      text: '#ec4899',
-      background: 'rgba(236, 72, 153, 0.1)',
-      border: 'rgba(236, 72, 153, 0.2)',
-    },
-    action: {
-      short: 'Needs Review',
-      long: 'Review Sales Reroute',
-      color: '#ec4899',
+      text: '#9333ea',
+      background: 'rgba(168, 85, 247, 0.15)',
+      border: 'rgba(168, 85, 247, 0.35)',
     },
   },
 };
@@ -163,10 +104,6 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
 // Classification helper functions
 export function getClassificationLabel(c: Classification): string {
   return CLASSIFICATIONS[c].label;
-}
-
-export function getClassificationAction(c: Classification) {
-  return CLASSIFICATIONS[c].action;
 }
 
 // =============================================================================
@@ -188,63 +125,36 @@ export const TERMINAL_STATES: Record<TerminalState, TerminalStateConfig> = {
     key: 'sent_meeting_offer',
     label: 'Meeting Offer Sent',
     colors: {
-      text: '#22c55e',
-      background: 'rgba(34, 197, 94, 0.1)',
-      border: 'rgba(34, 197, 94, 0.2)',
+      text: '#16a34a',
+      background: 'rgba(34, 197, 94, 0.15)',
+      border: 'rgba(34, 197, 94, 0.35)',
     },
   },
   sent_generic: {
     key: 'sent_generic',
     label: 'Generic Message Sent',
     colors: {
-      text: '#a1a1a1',
-      background: 'rgba(161, 161, 161, 0.1)',
-      border: 'rgba(161, 161, 161, 0.2)',
+      text: '#525252',
+      background: 'rgba(115, 115, 115, 0.15)',
+      border: 'rgba(115, 115, 115, 0.35)',
     },
   },
   forwarded_support: {
     key: 'forwarded_support',
     label: 'Forwarded to Support',
     colors: {
-      text: '#3b82f6',
-      background: 'rgba(59, 130, 246, 0.1)',
-      border: 'rgba(59, 130, 246, 0.2)',
+      text: '#2563eb',
+      background: 'rgba(59, 130, 246, 0.15)',
+      border: 'rgba(59, 130, 246, 0.35)',
     },
   },
   forwarded_account_team: {
     key: 'forwarded_account_team',
     label: 'Forwarded to Account Team',
     colors: {
-      text: '#a855f7',
-      background: 'rgba(168, 85, 247, 0.1)',
-      border: 'rgba(168, 85, 247, 0.2)',
-    },
-  },
-  customer_reroute: {
-    key: 'customer_reroute',
-    label: 'Customer Reroute',
-    colors: {
-      text: '#f59e0b',
-      background: 'rgba(245, 158, 11, 0.1)',
-      border: 'rgba(245, 158, 11, 0.2)',
-    },
-  },
-  support_reroute: {
-    key: 'support_reroute',
-    label: 'Support Reroute',
-    colors: {
-      text: '#06b6d4',
-      background: 'rgba(6, 182, 212, 0.1)',
-      border: 'rgba(6, 182, 212, 0.2)',
-    },
-  },
-  sales_reroute: {
-    key: 'sales_reroute',
-    label: 'Sales Reroute',
-    colors: {
-      text: '#ec4899',
-      background: 'rgba(236, 72, 153, 0.1)',
-      border: 'rgba(236, 72, 153, 0.2)',
+      text: '#9333ea',
+      background: 'rgba(168, 85, 247, 0.15)',
+      border: 'rgba(168, 85, 247, 0.35)',
     },
   },
 };
@@ -364,6 +274,10 @@ export interface Lead {
     subject: string;
     html: string;
   };
+
+  // Reroute information (optional - set when lead is rerouted by customer or internal team)
+  // Only one reroute per lead is supported
+  reroute?: Reroute;
 }
 
 // =============================================================================
@@ -382,9 +296,7 @@ export function getTerminalState(lead: Lead): TerminalState | null {
     case 'low-quality': return 'sent_generic';
     case 'support': return 'forwarded_support';
     case 'duplicate': return 'forwarded_account_team';
-    case 'customer-reroute': return 'customer_reroute';
-    case 'support-reroute': return 'support_reroute';
-    case 'sales-reroute': return 'sales_reroute';
+    default: return null;
   }
 }
 
@@ -412,20 +324,13 @@ export const STATUS_FILTER_OPTIONS = [
 
 // Type filter options (matches classification)
 export const TYPE_FILTER_OPTIONS = [
-  { key: 'high-quality', label: 'High Quality', color: '#22c55e' },        // green-500
-  { key: 'low-quality', label: 'Low Quality', color: '#a1a1a1' },          // gray
-  { key: 'support', label: 'Support', color: '#3b82f6' },                  // blue-500
-  { key: 'duplicate', label: 'Duplicate', color: '#a855f7' },              // purple-500
-  { key: 'customer-reroute', label: 'Customer Reroute', color: '#f59e0b' }, // amber-500
-  { key: 'support-reroute', label: 'Support Reroute', color: '#06b6d4' },  // cyan-500
-  { key: 'sales-reroute', label: 'Sales Reroute', color: '#ec4899' },      // pink-500
-  { key: 'unclassified', label: 'Unclassified', color: '#f97316' },        // orange-500
+  { key: 'high-quality', label: 'High Quality', color: '#16a34a' },        // green-600
+  { key: 'low-quality', label: 'Low Quality', color: '#525252' },          // neutral-600
+  { key: 'support', label: 'Support', color: '#2563eb' },                  // blue-600
+  { key: 'duplicate', label: 'Duplicate', color: '#9333ea' },              // purple-600
+  { key: 'rerouted', label: 'Rerouted', color: '#d97706' },                // amber-600 (leads with reroute field set)
+  { key: 'unclassified', label: 'Unclassified', color: '#ea580c' },        // orange-600
 ];
-
-export function getTerminalStateDisplay(state: TerminalState): { label: string; color: string } {
-  const config = TERMINAL_STATES[state];
-  return { label: config.label, color: config.colors.text };
-}
 
 export function getClassificationDisplay(classification: Classification): { label: string; color: string } {
   const config = CLASSIFICATIONS[classification];

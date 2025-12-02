@@ -1,118 +1,77 @@
 import * as React from 'react';
-import type { Lead, Classification, TerminalState } from '@/lib/types';
-import { getTerminalState, getCurrentClassification, getTerminalStateDisplay, getClassificationAction } from '@/lib/types';
-import { Check, X, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import type { Lead, Classification } from '@/lib/types';
+import { getCurrentClassification, getClassificationLabel } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, Loader2 } from 'lucide-react';
+
+type BadgeVariant = 'success' | 'muted' | 'info' | 'purple' | 'warning' | 'cyan' | 'pink' | 'processing';
 
 interface BadgeInfo {
   label: string;
-  bg: string;
-  text: string;
-  border: string;
+  variant: BadgeVariant;
   icon: React.ReactElement | null;
 }
 
 /**
- * Get colors for a given color hex
+ * Map classification to badge variant
  */
-function getColorsFromHex(hex: string) {
-  return {
-    background: `${hex}1a`,  // 10% opacity
-    text: hex,
-    border: `${hex}33`,       // 20% opacity
-  };
+function getVariantForClassification(classification: Classification): BadgeVariant {
+  switch (classification) {
+    case 'high-quality': return 'success';
+    case 'low-quality': return 'muted';
+    case 'support': return 'info';
+    case 'duplicate': return 'purple';
+    default: return 'muted';
+  }
 }
 
 /**
  * Determines the badge display for a lead based on status and classification
- *
- * New model logic:
- * - status.status = 'done' → Show terminal state (derived from classification)
- * - status.status = 'review' + no classification → Show "Processing"
- * - status.status = 'review' + classification → Show action needed
  */
 function getBadgeForLead(lead: Lead): BadgeInfo {
-  const { status, classifications } = lead;
-
-  // Check for terminal state (status = done)
-  const terminalState = getTerminalState(lead);
-  if (terminalState) {
-    const display = getTerminalStateDisplay(terminalState);
-    const colors = getColorsFromHex(display.color);
-
-    // Choose icon based on terminal state
-    let icon: React.ReactElement | null = <Check className="h-3 w-3" />;
-    if (terminalState === 'forwarded_support' || terminalState === 'forwarded_account_team') {
-      icon = <ArrowRight className="h-3 w-3" />;
-    }
-
-    return {
-      label: display.label,
-      bg: colors.background,
-      text: colors.text,
-      border: colors.border,
-      icon,
-    };
-  }
+  const { status } = lead;
 
   // Workflow is running (lead just submitted)
   if (status.status === 'processing') {
     return {
       label: 'Processing',
-      bg: 'rgba(139,92,246,0.1)',    // violet
-      text: '#8b5cf6',
-      border: 'rgba(139,92,246,0.2)',
+      variant: 'processing',
       icon: <Loader2 className="h-3 w-3 animate-spin" />
     };
   }
 
-  // Waiting for human classification (AI classification rate check failed)
-  if (status.status === 'classify') {
+  // Rerouted leads awaiting review
+  if (lead.reroute && (status.status === 'review' || status.status === 'classify')) {
     return {
-      label: 'Needs Classification',
-      bg: 'rgba(234,179,8,0.1)',     // yellow
-      text: '#eab308',
-      border: 'rgba(234,179,8,0.2)',
+      label: 'Rerouted',
+      variant: 'warning',
       icon: <AlertCircle className="h-3 w-3" />
     };
   }
 
-  // In review with no classification yet (shouldn't happen with new flow, but keep for safety)
-  if (status.status === 'review' && classifications.length === 0) {
+  // Waiting for human classification
+  if (status.status === 'classify') {
     return {
-      label: 'Processing',
-      bg: 'rgba(139,92,246,0.1)',
-      text: '#8b5cf6',
-      border: 'rgba(139,92,246,0.2)',
-      icon: <Loader2 className="h-3 w-3 animate-spin" />
+      label: 'Needs Classification',
+      variant: 'warning',
+      icon: <AlertCircle className="h-3 w-3" />
     };
   }
 
-  // In review with classification → Show action needed
-  if (status.status === 'review') {
-    const classification = getCurrentClassification(lead);
-
-    if (classification) {
-      const action = getClassificationAction(classification);
-      const colors = getColorsFromHex(action.color);
-      const actionLabel = action.short;
-      const icon = <ArrowRight className="h-3 w-3" />;
-
-      return {
-        label: actionLabel,
-        bg: colors.background,
-        text: colors.text,
-        border: colors.border,
-        icon,
-      };
-    }
+  // Done or review → Show classification label
+  const classification = getCurrentClassification(lead);
+  if (classification) {
+    return {
+      label: getClassificationLabel(classification),
+      variant: getVariantForClassification(classification),
+      icon: null
+    };
   }
 
   // Fallback for unknown state
   return {
     label: 'Unknown',
-    bg: 'rgba(161,161,161,0.1)',
-    text: '#a1a1a1',
-    border: 'rgba(161,161,161,0.2)',
+    variant: 'muted',
     icon: null
   };
 }
@@ -124,28 +83,15 @@ interface LeadBadgeProps {
 /**
  * LeadBadge - Primary badge for lead display
  *
- * Shows:
- * - Terminal state (done) → what happened (Sent, Dead, Forwarded)
- * - In review → what action to take (Review, Confirm Support, etc.)
- * - Processing → waiting for workflow
+ * Shows classification label for done/review leads, or status for processing/classify.
  */
 export function LeadBadge({ lead }: LeadBadgeProps) {
   const badge = getBadgeForLead(lead);
 
   return (
-    <span
-      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md border"
-      style={{
-        fontSize: '12px',
-        fontWeight: 500,
-        backgroundColor: badge.bg,
-        color: badge.text,
-        borderColor: badge.border,
-        transition: 'all 0.15s ease'
-      }}
-    >
+    <Badge variant={badge.variant} className="px-3 py-1">
       {badge.icon}
       {badge.label}
-    </span>
+    </Badge>
   );
 }

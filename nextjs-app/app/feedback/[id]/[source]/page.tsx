@@ -55,7 +55,7 @@ export default async function FeedbackPage({ params, searchParams }: FeedbackPag
   const accent = isSelfService ? 'rgba(59, 130, 246, 0.03)' : cfg.accent;
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background-primary)' }}>
+    <div className="min-h-screen bg-background">
       {/* Background decoration */}
       <div
         className="absolute inset-0 overflow-hidden pointer-events-none"
@@ -66,25 +66,16 @@ export default async function FeedbackPage({ params, searchParams }: FeedbackPag
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1
-              className="text-3xl sm:text-4xl font-semibold mb-4"
-              style={{ color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
-            >
+            <h1 className="text-3xl sm:text-4xl font-semibold mb-4 text-foreground tracking-tight">
               {title}
             </h1>
-            <p
-              className="text-base sm:text-lg"
-              style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}
-            >
+            <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
               {subtitle}
             </p>
           </div>
 
           {/* Form Card */}
-          <div
-            className="rounded-lg border p-8 sm:p-10"
-            style={{ background: 'var(--background-secondary)', borderColor: 'var(--border)' }}
-          >
+          <div className="rounded-lg border border-border p-8 sm:p-10 bg-card">
             <FeedbackForm
               leadId={lead.id}
               source={feedbackSource}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { VercelLogo } from '@/components/ui/vercel-logo';
 import LeadForm from '@/components/customer/LeadForm';
 import SuccessMessage from '@/components/customer/SuccessMessage';
+import { Button } from '@/components/ui/button';
 
 export default function CustomerPage() {
   const [showSuccess, setShowSuccess] = useState(false);
@@ -26,7 +27,7 @@ export default function CustomerPage() {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background-primary)' }}>
+    <div className="min-h-screen bg-background">
       {/* Background decoration - subtle gradient */}
       <div
         className="absolute inset-0 overflow-hidden pointer-events-none"
@@ -41,7 +42,7 @@ export default function CustomerPage() {
           {/* Vercel Branding */}
           <div className="flex items-center gap-2">
             <VercelLogo height={20} />
-            <span className="text-base font-medium" style={{ color: 'var(--text-primary)' }}>
+            <span className="text-base font-medium text-foreground">
               Vercel
             </span>
           </div>
@@ -49,31 +50,19 @@ export default function CustomerPage() {
           {/* Header Actions */}
           <div className="flex items-center gap-3">
             {/* Dashboard Button */}
-            <a
-              href="/dashboard"
-              className="px-4 py-2 rounded-md border text-sm font-medium transition-all duration-150 hover:border-opacity-100"
-              style={{
-                background: 'transparent',
-                borderColor: 'var(--border-custom)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              Dashboard
-            </a>
+            <Button asChild variant="outline" size="sm">
+              <a href="/dashboard">Dashboard</a>
+            </Button>
 
             {/* Dev Mode Toggle */}
             {isDevModeAvailable && (
-              <button
+              <Button
                 onClick={toggleDevMode}
-                className="px-4 py-2 rounded-md border text-sm font-medium transition-all duration-150"
-                style={{
-                  background: devModeEnabled ? 'var(--blue)' : 'transparent',
-                  borderColor: devModeEnabled ? 'var(--blue)' : 'var(--border-custom)',
-                  color: devModeEnabled ? '#000' : 'var(--text-secondary)',
-                }}
+                variant={devModeEnabled ? 'info' : 'outline'}
+                size="sm"
               >
                 {devModeEnabled ? '● Dev Mode ON' : '○ Dev Mode OFF'}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -83,34 +72,16 @@ export default function CustomerPage() {
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1
-              className="text-4xl sm:text-5xl font-semibold mb-4"
-              style={{
-                color: 'var(--text-primary)',
-                letterSpacing: '-0.02em',
-              }}
-            >
+            <h1 className="text-4xl sm:text-5xl font-semibold mb-4 text-foreground tracking-tight">
               Talk to our Sales team
             </h1>
-            <p
-              className="text-base sm:text-lg"
-              style={{
-                color: 'var(--text-secondary)',
-                lineHeight: '1.6',
-              }}
-            >
+            <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
               Discover the value of Vercel
             </p>
           </div>
 
           {/* Form Card */}
-          <div
-            className="rounded-lg border p-8 sm:p-10"
-            style={{
-              background: 'var(--background-secondary)',
-              borderColor: 'var(--border)',
-            }}
-          >
+          <div className="rounded-lg border border-border p-8 sm:p-10 bg-card">
             {showSuccess ? (
               <SuccessMessage
                 leadId={submittedLeadId || undefined}

@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { submitFeedback, type FeedbackState } from './actions';
 import type { FeedbackSource } from './page';
+import { Button } from '@/components/ui/button';
 
 interface FeedbackFormProps {
   leadId: string;
@@ -80,10 +81,10 @@ export default function FeedbackForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+        <h2 className="text-xl font-semibold mb-2 text-foreground">
           {cfg.successTitle(firstName)}
         </h2>
-        <p style={{ color: 'var(--text-secondary)' }}>{cfg.successMessage}</p>
+        <p className="text-muted-foreground">{cfg.successMessage}</p>
       </div>
     );
   }
@@ -95,15 +96,12 @@ export default function FeedbackForm({
 
       {/* Original Message / Lead Context */}
       <div className="mb-6">
-        <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+        <label className="block text-sm font-medium mb-2 text-muted-foreground">
           {source === 'customer' ? 'Your original request' : `Lead from ${company}`}
         </label>
         <div
-          className="p-4 rounded-md text-sm"
+          className="p-4 rounded-md text-sm bg-background border border-border text-muted-foreground"
           style={{
-            background: 'var(--background-primary)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-secondary)',
             maxHeight: source !== 'customer' ? '150px' : undefined,
             overflowY: source !== 'customer' ? 'auto' : undefined,
           }}
@@ -114,15 +112,9 @@ export default function FeedbackForm({
 
       {/* Self-service info box */}
       {isSelfService && (
-        <div
-          className="mb-6 p-4 rounded-md"
-          style={{
-            background: 'rgba(59, 130, 246, 0.05)',
-            border: '1px solid rgba(59, 130, 246, 0.2)',
-          }}
-        >
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            This marks the lead as <strong style={{ color: '#3b82f6' }}>self-service</strong> - meaning
+        <div className="mb-6 p-4 rounded-md bg-blue-500/5 border border-blue-500/20">
+          <p className="text-sm text-muted-foreground">
+            This marks the lead as <strong className="text-blue-500">self-service</strong> - meaning
             no support response was needed because the automated email was sufficient.
           </p>
         </div>
@@ -130,16 +122,10 @@ export default function FeedbackForm({
 
       {/* Source info box for support/sales (non-self-service) */}
       {!isSelfService && source !== 'customer' && (
-        <div
-          className="mb-6 p-4 rounded-md"
-          style={{
-            background: 'rgba(236, 72, 153, 0.05)',
-            border: '1px solid rgba(236, 72, 153, 0.2)',
-          }}
-        >
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <div className="mb-6 p-4 rounded-md bg-pink-500/5 border border-pink-500/20">
+          <p className="text-sm text-muted-foreground">
             Sending back from:{' '}
-            <strong style={{ color: '#ec4899' }}>
+            <strong className="text-pink-500">
               {source === 'support' ? 'Support Team' : 'Sales Team'}
             </strong>
           </p>
@@ -151,8 +137,7 @@ export default function FeedbackForm({
         <div className="mb-6">
           <label
             htmlFor="reason"
-            className="block text-sm font-medium mb-2"
-            style={{ color: 'var(--text-primary)' }}
+            className="block text-sm font-medium mb-2 text-foreground"
           >
             {source === 'customer'
               ? "Tell us more about what you're looking for"
@@ -167,12 +152,7 @@ export default function FeedbackForm({
                 ? 'Please provide any additional context that would help us understand your needs...'
                 : 'Provide context to help the SDR team reclassify this lead...'
             }
-            className="w-full px-4 py-3 rounded-md text-sm transition-all duration-150 focus:outline-none focus:ring-2"
-            style={{
-              background: 'var(--background-primary)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-primary)',
-            }}
+            className="w-full px-4 py-3 rounded-md text-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-ring bg-background border border-border text-foreground"
             required={isReasonRequired}
             disabled={isPending}
           />
@@ -181,30 +161,21 @@ export default function FeedbackForm({
 
       {/* Error Message */}
       {state?.error && (
-        <div
-          className="mb-6 p-4 rounded-md text-sm"
-          style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            color: '#ef4444',
-          }}
-        >
+        <div className="mb-6 p-4 rounded-md text-sm bg-destructive/10 border border-destructive/20 text-destructive">
           {state.error}
         </div>
       )}
 
       {/* Submit Button */}
-      <button
+      <Button
         type="submit"
         disabled={isPending}
-        className="w-full py-3 px-4 rounded-md text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{
-          background: source === 'customer' && !isSelfService ? 'var(--text-primary)' : cfg.color,
-          color: source === 'customer' && !isSelfService ? 'var(--background-primary)' : '#fff',
-        }}
+        className="w-full"
+        variant={source === 'customer' && !isSelfService ? 'light' : 'default'}
+        style={source !== 'customer' || isSelfService ? { background: cfg.color, color: '#fff' } : undefined}
       >
         {isPending ? cfg.submittingLabel : cfg.submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }

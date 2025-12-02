@@ -7,6 +7,7 @@ import { VercelLogo } from '@/components/ui/vercel-logo';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/db/client';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
+import { useTheme } from 'next-themes';
 
 type TabValue = 'leads' | 'analytics' | 'settings' | 'case-studies';
 
@@ -19,6 +20,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { isDeveloperMode, toggleDeveloperMode } = useDeveloperMode();
+  const { theme, setTheme } = useTheme();
   const [dynamicName, setDynamicName] = useState<string | null>(null);
   const [caseStudiesEnabled, setCaseStudiesEnabled] = useState(false);
 
@@ -114,9 +116,9 @@ export default function DashboardLayout({
   ];
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background-primary)' }}>
+    <div className="min-h-screen bg-background">
       {/* Vercel-style Header */}
-      <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+      <div className="bg-white/[0.03]">
         {/* Top Row: Logo/Breadcrumb and Profile */}
         <div className="flex items-center justify-between h-12 px-6">
           {/* Logo and Breadcrumb */}
@@ -124,17 +126,16 @@ export default function DashboardLayout({
             <VercelLogo height={10} />
             {breadcrumbSegments.map((segment, index) => (
               <div key={index} className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>/</span>
+                <span className="text-xs text-muted-foreground">/</span>
                 {segment.path ? (
                   <button
                     onClick={() => router.push(segment.path)}
-                    className="text-xs cursor-pointer hover:opacity-70 transition-opacity"
-                    style={{ color: 'var(--text-primary)' }}
+                    className="text-xs cursor-pointer hover:opacity-70 transition-opacity text-foreground"
                   >
                     {segment.label}
                   </button>
                 ) : (
-                  <span className="text-xs" style={{ color: 'var(--text-primary)' }}>
+                  <span className="text-xs text-foreground">
                     {segment.label}
                   </span>
                 )}
@@ -145,16 +146,12 @@ export default function DashboardLayout({
           {/* User Profile */}
           <div className="relative">
             <div className="flex items-center gap-3">
-              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <span className="text-sm text-muted-foreground">
                 Ryan
               </span>
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium cursor-pointer transition-opacity hover:opacity-80"
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  color: 'var(--text-primary)',
-                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium cursor-pointer transition-opacity hover:opacity-80 bg-muted text-foreground"
               >
                 R
               </button>
@@ -170,71 +167,46 @@ export default function DashboardLayout({
                 />
 
                 {/* Menu */}
-                <div
-                  className="absolute right-0 mt-2 w-56 rounded-md shadow-lg z-20"
-                  style={{
-                    backgroundColor: 'var(--background-secondary)',
-                    border: '1px solid var(--border-custom)',
-                  }}
-                >
+                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg z-20 bg-card border border-border">
                   <div className="py-1">
                     <a
-                      href="/dashboard"
-                      className="block px-4 py-2 text-sm transition-colors"
-                      style={{ color: 'var(--text-primary)' }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      Dashboard
-                    </a>
-                    <a
                       href="/"
-                      className="block px-4 py-2 text-sm transition-colors"
-                      style={{ color: 'var(--text-primary)' }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
+                      className="block px-4 py-2 text-sm transition-colors text-foreground hover:bg-white/5"
                     >
-                      Switch to Customer View
+                      Contact Sales Form
                     </a>
                     <a
-                      href="/dashboard/docs"
-                      className="block px-4 py-2 text-sm transition-colors"
-                      style={{ color: 'var(--text-primary)' }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
+                      href="/dashboard/settings"
+                      className="block px-4 py-2 text-sm transition-colors text-foreground hover:bg-white/5"
                     >
-                      Docs
+                      Requirements
                     </a>
 
+                    {/* Theme Toggle */}
+                    <div className="border-t border-border mt-1 pt-1">
+                      <button
+                        onClick={() => {
+                          setTheme(theme === 'dark' ? 'light' : 'dark');
+                          setShowProfileMenu(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between hover:bg-white/5 text-foreground"
+                      >
+                        <span>Theme</span>
+                        <span className="text-xs">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+                      </button>
+                    </div>
+
                     {/* Dev Mode Toggle */}
-                    <div className="border-t mt-1 pt-1" style={{ borderColor: 'var(--border-custom)' }}>
+                    <div className="border-t border-border pt-1">
                       <button
                         onClick={() => {
                           toggleDeveloperMode();
                           setShowProfileMenu(false);
                         }}
-                        className="block w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between"
-                        style={{ color: isDeveloperMode ? '#f97316' : 'var(--text-primary)' }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
+                        className="block w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between hover:bg-white/5"
+                        style={{ color: isDeveloperMode ? '#f97316' : undefined }}
                       >
-                        <span>Dev Mode</span>
+                        <span className={isDeveloperMode ? 'text-orange-500' : 'text-foreground'}>Dev Mode</span>
                         <span className="text-xs">{isDeveloperMode ? 'ON' : 'OFF'}</span>
                       </button>
                     </div>
@@ -247,28 +219,18 @@ export default function DashboardLayout({
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b" style={{ borderColor: 'var(--border-custom)', backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+      <div className="border-b border-border bg-white/[0.03]">
         <div className="px-3">
           <nav className="flex items-end gap-1 h-10">
             {navItems.map((item) => (
               <Link
                 key={item.value}
                 href={item.path}
-                className="px-3 h-full text-xs transition-colors relative inline-flex items-center"
-                style={{
-                  color: activeTab === item.value ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  borderBottom: activeTab === item.value ? '3px solid var(--text-primary)' : '3px solid transparent',
-                }}
-                onMouseEnter={(e) => {
-                  if (activeTab !== item.value) {
-                    e.currentTarget.style.color = 'var(--text-primary)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeTab !== item.value) {
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                  }
-                }}
+                className={`px-3 h-full text-xs transition-colors relative inline-flex items-center ${
+                  activeTab === item.value
+                    ? 'text-foreground border-b-[3px] border-foreground'
+                    : 'text-muted-foreground border-b-[3px] border-transparent hover:text-foreground'
+                }`}
               >
                 {item.label}
               </Link>

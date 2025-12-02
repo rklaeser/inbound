@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, FlaskConical, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, FlaskConical, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { runTests, type TestRunResult } from '@/actions/run-tests';
 import { testData } from '@/lib/db/mock-leads';
@@ -195,34 +196,35 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
       {/* Dev Mode Quick Test */}
       {devModeEnabled && (
         <div className="pb-6 border-b border-border">
-          <div className="flex items-center gap-2 mb-3">
-            <FlaskConical className="h-4 w-4" />
-            <h3 className="text-sm font-medium">Quick Test</h3>
-          </div>
-          <div className="space-y-2">
-            {/* All Tests Button */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleRunTests}
-                disabled={testRunning}
-              >
-                {testRunning ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Running...
-                  </>
-                ) : (
-                  'All'
-                )}
-              </Button>
-            </div>
-
-            {/* High Quality */}
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-emerald-500 w-20">High Quality</span>
+              <FlaskConical className="h-4 w-4" />
+              <h3 className="text-sm font-medium">Quick Test</h3>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRunTests}
+              disabled={testRunning}
+            >
+              {testRunning ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play className="h-3.5 w-3.5" />
+                  Run All ({Object.keys(testData).length})
+                </>
+              )}
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {/* High Quality */}
+            <div className="rounded-lg bg-muted/30 p-3">
+              <Badge variant="success" className="mb-2">High Quality</Badge>
               <div className="flex flex-wrap gap-2">
                 {getTestCasesForClassification('high-quality').map((key) => (
                   <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
@@ -233,8 +235,8 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
             </div>
 
             {/* Low Quality */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-amber-500 w-20">Low Quality</span>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <Badge variant="muted" className="mb-2">Low Quality</Badge>
               <div className="flex flex-wrap gap-2">
                 {getTestCasesForClassification('low-quality').map((key) => (
                   <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
@@ -245,8 +247,8 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
             </div>
 
             {/* Support */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-blue-500 w-20">Support</span>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <Badge variant="info" className="mb-2">Support</Badge>
               <div className="flex flex-wrap gap-2">
                 {getTestCasesForClassification('support').map((key) => (
                   <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
@@ -257,8 +259,8 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
             </div>
 
             {/* Duplicate */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-purple-500 w-20">Duplicate</span>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <Badge variant="purple" className="mb-2">Duplicate</Badge>
               <div className="flex flex-wrap gap-2">
                 {getTestCasesForClassification('duplicate').map((key) => (
                   <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
@@ -399,7 +401,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Message</FieldLabel>
+                <FieldLabel htmlFor={field.name}>How can we help?</FieldLabel>
                 <Textarea
                   id={field.name}
                   name={field.name}
@@ -409,7 +411,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
                   rows={6}
                   className="resize-none"
                   aria-invalid={isInvalid}
-                  placeholder="Tell us about your inquiry..."
+                  placeholder="Your company needs"
                   disabled={form.state.isSubmitting}
                 />
                 <FieldDescription>
@@ -425,7 +427,7 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
       {/* Submit Button */}
       <Button
         type="submit"
-        variant="blue"
+        variant="info"
         disabled={form.state.isSubmitting}
         className="w-full rounded-full"
       >
