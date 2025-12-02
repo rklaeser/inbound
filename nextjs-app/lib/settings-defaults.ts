@@ -135,8 +135,8 @@ export const DEFAULT_CONFIGURATION: Omit<Configuration, 'updated_at' | 'updated_
     name: 'Ryan',
     lastName: 'Hemelt',
     email: 'ryan@vercel.com',
-    title: 'Development Representative',
-    avatar: 'https://vercel.com/api/www/avatar?u=rauchg&s=64',
+    title: 'Development Manager',
+    avatar: '/profpic.jpeg',
   },
   supportTeam: {
     name: 'Support Team',

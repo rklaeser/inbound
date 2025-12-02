@@ -123,6 +123,15 @@ function formatLead(lead, includeFullDetails = false) {
             markedSelfService: lead.supportFeedback.markedSelfService,
             timestamp: formatTimestamp(lead.supportFeedback.timestamp),
         } : null,
+        // Reroute information
+        reroute: lead.reroute ? {
+            id: lead.reroute.id,
+            source: lead.reroute.source,
+            reason: lead.reroute.reason || null,
+            originalClassification: lead.reroute.originalClassification,
+            previousTerminalState: lead.reroute.previousTerminalState || null,
+            timestamp: formatTimestamp(lead.reroute.timestamp),
+        } : null,
     };
 }
 // Helper function to determine workflow status
@@ -144,9 +153,7 @@ function determineWorkflowStatus(lead) {
             'high-quality': 'Meeting offer email sent',
             'low-quality': 'Generic sales email sent',
             'support': 'Forwarded to support team',
-            'duplicate': 'Forwarded to account team',
-            'customer-reroute': 'Customer reroute - needs SDR review',
-            'internal-reroute': 'Internal reroute - needs SDR review',
+            'existing': 'Forwarded to account team',
         };
         nextAction = actionMap[currentClassification] || info.action;
     }
@@ -229,7 +236,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         classification: {
                             type: 'string',
                             description: 'Filter by current classification type',
-                            enum: ['high-quality', 'low-quality', 'support', 'duplicate', 'customer-reroute', 'internal-reroute'],
+                            enum: ['high-quality', 'low-quality', 'support', 'existing'],
                         },
                         limit: {
                             type: 'number',
@@ -287,6 +294,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                     },
                     required: ['id'],
+                },
+            },
+            {
+                name: 'list_case_study_urls',
+                description: 'List case study IDs, company names, and URLs only. Token-efficient alternative to list_case_studies.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
                 },
             },
             {
@@ -610,6 +625,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         {
                             type: 'text',
                             text: JSON.stringify(result, null, 2),
+                        },
+                    ],
+                };
+            }
+            case 'list_case_study_urls': {
+                // Lightweight query - just get IDs, company names, and URLs
+                const snapshot = await db.collection(CASE_STUDIES_COLLECTION)
+                    .orderBy('company', 'asc')
+                    .get();
+                const caseStudyUrls = snapshot.docs.map((doc) => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        company: data.company,
+                        url: data.url,
+                    };
+                });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: JSON.stringify({
+                                case_studies: caseStudyUrls,
+                                total: caseStudyUrls.length,
+                            }, null, 2),
                         },
                     ],
                 };

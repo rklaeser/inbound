@@ -13,7 +13,6 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
 
   // Form state - Thresholds
@@ -55,7 +54,7 @@ export default function SettingsPage() {
   const [responseToLeadDuplicate, setResponseToLeadDuplicate] = useState(false);
 
   // Active section for sidebar navigation
-  const [activeSection, setActiveSection] = useState<'classification' | 'emails' | 'hardcoded'>('classification');
+  const [activeSection, setActiveSection] = useState<'classification' | 'emails' | 'experimental' | 'hardcoded'>('classification');
 
 
   useEffect(() => {
@@ -126,72 +125,16 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
-
+  // Generic auto-save function for any settings update
+  const autoSave = async (updates: Record<string, unknown>) => {
     try {
-      const response = await fetch('/api/settings', {
+      await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          thresholds: {
-            highQuality: autoSendQuality,
-            lowQuality: autoDeadLowValue,
-            support: autoForwardSupport,
-          },
-          allowHighQualityAutoSend,
-          emailTemplates,
-          sdr: {
-            name: sdrName,
-            lastName: sdrLastName,
-            email: sdrEmail,
-            title: sdrTitle,
-          },
-          supportTeam: {
-            email: supportTeamEmail,
-          },
-          rollout: {
-            enabled: percentAI > 0,
-            percentage: percentAI / 100,
-          },
-          email: {
-            enabled: emailEnabled,
-            testMode: emailTestMode,
-            testEmail: emailTestAddress,
-          },
-          prompts: {
-            classification: classificationPrompt,
-            emailHighQuality: emailHighQualityPrompt,
-            classificationEval: classificationEvalPrompt,
-            emailHighQualityEval: emailHighQualityEvalPrompt,
-          },
-          experimental: {
-            caseStudies: experimentalCaseStudies,
-          },
-          responseToLead: {
-            lowQuality: responseToLeadLowQuality,
-            support: responseToLeadSupport,
-            existing: responseToLeadDuplicate,
-          },
-        }),
+        body: JSON.stringify(updates),
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccessMessage('Settings saved successfully');
-        setTimeout(() => setSuccessMessage(null), 3000);
-        loadSettings();
-      } else {
-        setError(data.error || 'Failed to save settings');
-      }
     } catch (err) {
-      setError('Failed to save settings');
-      console.error(err);
-    } finally {
-      setSaving(false);
+      console.error('Auto-save failed:', err);
     }
   };
 
@@ -202,7 +145,6 @@ export default function SettingsPage() {
 
     setSaving(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       const response = await fetch('/api/settings', {
@@ -212,8 +154,6 @@ export default function SettingsPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccessMessage('Settings reset to defaults');
-        setTimeout(() => setSuccessMessage(null), 3000);
         loadSettings();
       } else {
         setError(data.error || 'Failed to reset settings');
@@ -303,6 +243,7 @@ export default function SettingsPage() {
   const sections = [
     { id: 'classification' as const, label: 'Classification' },
     { id: 'emails' as const, label: 'Emails' },
+    { id: 'experimental' as const, label: 'Experimental' },
     { id: 'hardcoded' as const, label: 'Hardcoded' },
   ];
 
@@ -317,19 +258,12 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Messages */}
-      {(error || successMessage) && (
+      {/* Error message */}
+      {error && (
         <div className="px-8 pt-6">
-          {error && (
-            <div className="mb-4 border border-destructive/20 rounded-md p-4 text-sm bg-destructive/10 text-destructive">
-              {error}
-            </div>
-          )}
-          {successMessage && (
-            <div className="mb-4 border border-green-500/20 rounded-md p-4 text-sm bg-green-500/10 text-green-500">
-              {successMessage}
-            </div>
-          )}
+          <div className="mb-4 border border-destructive/20 rounded-md p-4 text-sm bg-destructive/10 text-destructive">
+            {error}
+          </div>
         </div>
       )}
 
@@ -359,34 +293,6 @@ export default function SettingsPage() {
           {/* CLASSIFICATION SECTION */}
           {activeSection === 'classification' && (
             <div className="space-y-0">
-              <SettingsCard
-                title="Rollout"
-                description="Percentage of leads classified by AI. The rest are routed to human classification."
-                footer={
-                  <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>0% (All Human)</span>
-                    <span>50% (A/B Test)</span>
-                    <span>100% (Full Bot)</span>
-                  </div>
-                }
-                action={
-                  <span className="font-mono font-semibold text-sm text-foreground">
-                    {percentAI}%
-                  </span>
-                }
-              >
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={percentAI}
-                  onChange={(e) => setPercentAI(Number(e.target.value))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer transition-[background] duration-150"
-                  style={{ background: `linear-gradient(to right, hsl(var(--info)) 0%, hsl(var(--info)) ${percentAI}%, hsl(var(--secondary)) ${percentAI}%, hsl(var(--secondary)) 100%)` }}
-                />
-              </SettingsCard>
-
               <SettingsCard
                 title="Classification Prompt"
                 description="The prompt used by Bot to classify incoming leads into categories (high-quality, low-quality, support, existing)."
@@ -423,31 +329,8 @@ export default function SettingsPage() {
 
           {/* EMAILS SECTION */}
           {activeSection === 'emails' && (
-            <div className="space-y-0">
-              <SettingsCard
-                title="Experimental Features"
-                description="Preview features that may change or be removed."
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-xs font-medium text-foreground">
-                      Case Studies
-                    </label>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[400px]">
-                      When enabled, matched case studies are appended to high-quality emails and shown on the lead detail page
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setExperimentalCaseStudies(!experimentalCaseStudies)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${experimentalCaseStudies ? 'bg-info' : 'bg-secondary'}`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${experimentalCaseStudies ? 'translate-x-6' : 'translate-x-1'}`}
-                    />
-                  </button>
-                </div>
-              </SettingsCard>
-
+            <div className="space-y-6">
+              {/* High Quality */}
               <EmailTemplateCard
                 title="High Quality"
                 description="Sent from SDR to qualified leads with meeting offer"
@@ -455,12 +338,14 @@ export default function SettingsPage() {
                 onUpdate={(field, value) => updateTemplate('highQuality', field, value)}
                 onSaveField={(field, value) => saveTemplateField('highQuality', field, value)}
                 isFirst={true}
+                isLast={true}
                 bodyPrompt={emailHighQualityPrompt}
                 onBodyPromptSave={(value) => savePromptField('emailHighQuality', value)}
                 evalPrompt={emailHighQualityEvalPrompt}
                 onEvalPromptSave={(value) => savePromptField('emailHighQualityEval', value)}
               />
 
+              {/* Low Quality */}
               <EmailTemplateCard
                 title="Low Quality"
                 description="Generic email sent to leads that don't meet qualification criteria"
@@ -469,57 +354,151 @@ export default function SettingsPage() {
                 onSaveField={(field, value) => saveTemplateField('lowQuality', field, value)}
                 templateType="lowQuality"
                 thresholdValue={autoDeadLowValue}
-                onThresholdChange={setAutoDeadLowValue}
+                onThresholdChange={(value) => {
+                  setAutoDeadLowValue(value);
+                  autoSave({ thresholds: { lowQuality: value } });
+                }}
                 thresholdDescription="Automatically send this email when classification confidence >= threshold"
                 responseToLead={responseToLeadLowQuality}
-                onResponseToLeadChange={setResponseToLeadLowQuality}
-              />
-
-              <EmailTemplateCard
-                title="Support"
-                description="Acknowledgment sent to the lead"
-                template={emailTemplates.support}
-                onUpdate={(field, value) => updateTemplate('support', field, value)}
-                onSaveField={(field, value) => saveTemplateField('support', field, value)}
-                templateType="simple"
-                thresholdValue={autoForwardSupport}
-                onThresholdChange={setAutoForwardSupport}
-                thresholdDescription="Automatically forward to support team when classification confidence >= threshold"
-                responseToLead={responseToLeadSupport}
-                onResponseToLeadChange={setResponseToLeadSupport}
-              />
-
-              <EmailTemplateCard
-                title="Support Internal"
-                description="Sent to support team when a support request is received"
-                template={emailTemplates.supportInternal}
-                onUpdate={(field, value) => updateTemplate('supportInternal', field, value)}
-                onSaveField={(field, value) => saveTemplateField('supportInternal', field, value)}
-                templateType="internal"
-                recipientEmail={supportTeamEmail}
-                onRecipientEmailChange={setSupportTeamEmail}
-              />
-
-              <EmailTemplateCard
-                title="Existing"
-                description="Acknowledgment sent to the lead"
-                template={emailTemplates.existing}
-                onUpdate={(field, value) => updateTemplate('existing', field, value)}
-                onSaveField={(field, value) => saveTemplateField('existing', field, value)}
-                responseToLead={responseToLeadDuplicate}
-                onResponseToLeadChange={setResponseToLeadDuplicate}
-                templateType="simple"
-              />
-
-              <EmailTemplateCard
-                title="Existing Internal"
-                description="Sent to account rep when an existing customer reaches out"
-                template={emailTemplates.existingInternal}
-                onUpdate={(field, value) => updateTemplate('existingInternal', field, value)}
-                onSaveField={(field, value) => saveTemplateField('existingInternal', field, value)}
-                templateType="internal"
+                onResponseToLeadChange={(value) => {
+                  setResponseToLeadLowQuality(value);
+                  autoSave({ responseToLead: { lowQuality: value, support: responseToLeadSupport, existing: responseToLeadDuplicate } });
+                }}
+                isFirst={true}
                 isLast={true}
               />
+
+              {/* Support + Support Internal group */}
+              <div className="space-y-0">
+                <EmailTemplateCard
+                  title="Support"
+                  description="Acknowledgment sent to the lead"
+                  template={emailTemplates.support}
+                  onUpdate={(field, value) => updateTemplate('support', field, value)}
+                  onSaveField={(field, value) => saveTemplateField('support', field, value)}
+                  templateType="simple"
+                  thresholdValue={autoForwardSupport}
+                  onThresholdChange={(value) => {
+                    setAutoForwardSupport(value);
+                    autoSave({ thresholds: { support: value } });
+                  }}
+                  thresholdDescription="Automatically forward to support team when classification confidence >= threshold"
+                  responseToLead={responseToLeadSupport}
+                  onResponseToLeadChange={(value) => {
+                    setResponseToLeadSupport(value);
+                    autoSave({ responseToLead: { lowQuality: responseToLeadLowQuality, support: value, existing: responseToLeadDuplicate } });
+                  }}
+                  isFirst={true}
+                />
+
+                <EmailTemplateCard
+                  title="Support Internal"
+                  description="Sent to support team when a support request is received"
+                  template={emailTemplates.supportInternal}
+                  onUpdate={(field, value) => updateTemplate('supportInternal', field, value)}
+                  onSaveField={(field, value) => saveTemplateField('supportInternal', field, value)}
+                  templateType="internal"
+                  recipientEmail={supportTeamEmail}
+                  onRecipientEmailChange={(value) => {
+                    setSupportTeamEmail(value);
+                    autoSave({ supportTeam: { email: value } });
+                  }}
+                  isLast={true}
+                />
+              </div>
+
+              {/* Existing + Existing Internal group */}
+              <div className="space-y-0">
+                <EmailTemplateCard
+                  title="Existing"
+                  description="Acknowledgment sent to the lead"
+                  template={emailTemplates.existing}
+                  onUpdate={(field, value) => updateTemplate('existing', field, value)}
+                  onSaveField={(field, value) => saveTemplateField('existing', field, value)}
+                  responseToLead={responseToLeadDuplicate}
+                  onResponseToLeadChange={(value) => {
+                    setResponseToLeadDuplicate(value);
+                    autoSave({ responseToLead: { lowQuality: responseToLeadLowQuality, support: responseToLeadSupport, existing: value } });
+                  }}
+                  templateType="simple"
+                  isFirst={true}
+                />
+
+                <EmailTemplateCard
+                  title="Existing Internal"
+                  description="Sent to account rep when an existing customer reaches out"
+                  template={emailTemplates.existingInternal}
+                  onUpdate={(field, value) => updateTemplate('existingInternal', field, value)}
+                  onSaveField={(field, value) => saveTemplateField('existingInternal', field, value)}
+                  templateType="internal"
+                  isLast={true}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* EXPERIMENTAL SECTION */}
+          {activeSection === 'experimental' && (
+            <div className="space-y-0">
+              <SettingsCard
+                title="Rollout"
+                description="Percentage of leads classified by AI. The rest are routed to human classification."
+                footer={
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>0% (All Human)</span>
+                    <span>50% (A/B Test)</span>
+                    <span>100% (Full Bot)</span>
+                  </div>
+                }
+                action={
+                  <span className="font-mono font-semibold text-sm text-foreground">
+                    {percentAI}%
+                  </span>
+                }
+              >
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={percentAI}
+                  onChange={(e) => {
+                    const newValue = Number(e.target.value);
+                    setPercentAI(newValue);
+                    autoSave({ rollout: { enabled: newValue > 0, percentage: newValue / 100 } });
+                  }}
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer transition-[background] duration-150"
+                  style={{ background: `linear-gradient(to right, hsl(var(--info)) 0%, hsl(var(--info)) ${percentAI}%, hsl(var(--secondary)) ${percentAI}%, hsl(var(--secondary)) 100%)` }}
+                />
+              </SettingsCard>
+
+              <SettingsCard
+                title="Case Studies"
+                description="When enabled, matched case studies are appended to high-quality emails and shown on the lead detail page."
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-medium text-foreground">
+                      Enable Case Studies
+                    </label>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[400px]">
+                      Matches leads to relevant customer success stories based on industry and use case
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const newValue = !experimentalCaseStudies;
+                      setExperimentalCaseStudies(newValue);
+                      autoSave({ experimental: { caseStudies: newValue } });
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${experimentalCaseStudies ? 'bg-info' : 'bg-secondary'}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${experimentalCaseStudies ? 'translate-x-6' : 'translate-x-1'}`}
+                    />
+                  </button>
+                </div>
+              </SettingsCard>
             </div>
           )}
 
@@ -531,92 +510,35 @@ export default function SettingsPage() {
                 description="Used as the sender for high-quality email responses."
               >
                 <div className="space-y-4">
-                  <TextInput label="SDR First Name" value={sdrName} onChange={setSdrName} />
-                  <TextInput label="SDR Last Name" value={sdrLastName} onChange={setSdrLastName} />
-                  <TextInput label="SDR Email" value={sdrEmail} onChange={setSdrEmail} type="email" />
+                  <TextInput
+                    label="SDR First Name"
+                    value={sdrName}
+                    onChange={setSdrName}
+                    onBlur={() => autoSave({ sdr: { name: sdrName, lastName: sdrLastName, email: sdrEmail, title: sdrTitle } })}
+                  />
+                  <TextInput
+                    label="SDR Last Name"
+                    value={sdrLastName}
+                    onChange={setSdrLastName}
+                    onBlur={() => autoSave({ sdr: { name: sdrName, lastName: sdrLastName, email: sdrEmail, title: sdrTitle } })}
+                  />
+                  <TextInput
+                    label="SDR Email"
+                    value={sdrEmail}
+                    onChange={setSdrEmail}
+                    type="email"
+                    onBlur={() => autoSave({ sdr: { name: sdrName, lastName: sdrLastName, email: sdrEmail, title: sdrTitle } })}
+                  />
                   <div>
-                    <TextInput label="SDR Title" value={sdrTitle} onChange={setSdrTitle} />
+                    <TextInput
+                      label="SDR Title"
+                      value={sdrTitle}
+                      onChange={setSdrTitle}
+                      onBlur={() => autoSave({ sdr: { name: sdrName, lastName: sdrLastName, email: sdrEmail, title: sdrTitle } })}
+                    />
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Signature preview: Best, {sdrName || 'Ryan'} / {sdrName || 'Ryan'} {sdrLastName || 'Hemelt'} / ▲ Vercel {sdrTitle || 'Development Representative'}
+                      Signature preview: Best, {sdrName || 'Ryan'} / {sdrName || 'Ryan'} {sdrLastName || 'Hemelt'} / ▲ Vercel {sdrTitle || 'Development Manager'}
                     </p>
-                  </div>
-                </div>
-              </SettingsCard>
-
-              <SettingsCard
-                title="Email Sending"
-                description="Control whether emails are actually sent and configure test mode."
-              >
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground">
-                        Enable Email Sending
-                      </label>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        When enabled, emails will actually be sent via Resend
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setEmailEnabled(!emailEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailEnabled ? 'bg-info' : 'bg-secondary'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${emailEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground">
-                        Test Mode
-                      </label>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        When enabled, all emails are sent to the test address below
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setEmailTestMode(!emailTestMode)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailTestMode ? 'bg-info' : 'bg-secondary'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${emailTestMode ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
-                  </div>
-
-                  {emailTestMode && (
-                    <div>
-                      <label className="block mb-2 text-xs font-medium text-muted-foreground">
-                        Test Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={emailTestAddress}
-                        onChange={(e) => setEmailTestAddress(e.target.value)}
-                        className="w-full border border-border/60 rounded-md p-2 text-sm bg-card text-foreground h-10 focus:border-info focus:outline-none transition-colors"
-                        placeholder="test@example.com"
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        All emails will be sent to this address with [TEST] prefix in subject
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="border border-border/60 rounded-md p-3 bg-background">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`w-2 h-2 rounded-full ${emailEnabled ? (emailTestMode ? 'bg-amber-500' : 'bg-green-500') : 'bg-destructive'}`}
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {!emailEnabled
-                          ? 'Emails disabled - no emails will be sent'
-                          : emailTestMode
-                          ? `Test mode - all emails sent to ${emailTestAddress}`
-                          : 'Production mode - emails sent to actual recipients'}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </SettingsCard>
@@ -638,24 +560,20 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Save buttons - always visible */}
-          <div className="mt-8 flex justify-between items-center">
-            <div>
-              {config && (
-                <span className="text-xs text-muted-foreground">
-                  Last updated: {new Date(config.updated_at as any).toLocaleString()} by {config.updated_by}
-                </span>
-              )}
+          {/* Last updated info */}
+          {config && config.updated_at && (
+            <div className="mt-8">
+              <span className="text-xs text-muted-foreground">
+                Last updated: {(() => {
+                  const ts = config.updated_at as any;
+                  // Handle Firestore timestamp format { _seconds, _nanoseconds }
+                  if (ts._seconds) return new Date(ts._seconds * 1000).toLocaleString();
+                  // Handle ISO string or Date
+                  return new Date(ts).toLocaleString();
+                })()} by {config.updated_by}
+              </span>
             </div>
-            <div className="flex gap-3">
-              <Button onClick={loadSettings} disabled={saving} variant="outline" className="transition-all duration-150">
-                Discard Changes
-              </Button>
-              <Button onClick={handleSave} disabled={saving} variant="info" className="font-medium transition-all duration-150">
-                {saving ? 'Saving...' : 'Save Settings'}
-              </Button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -772,20 +690,26 @@ function EmailTemplateCard({
             )}
           </div>
         </div>
-        <div className={`space-y-4 transition-opacity ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
-          {/* Auto-send threshold for templates that support it */}
-          {thresholdValue !== undefined && onThresholdChange && (
-            <div className="pb-4 border-b border-border/60">
-              <ThresholdInput
-                label="Auto-Send Threshold"
-                value={thresholdValue}
-                onChange={onThresholdChange}
-                description={thresholdDescription || "Automatically send this email when confidence >= threshold"}
-                disabled={isDisabled}
-              />
-            </div>
-          )}
 
+        {/* Auto-send threshold - always visible, not affected by responseToLead toggle */}
+        {thresholdValue !== undefined && onThresholdChange && (
+          <div className="mb-4 pb-4 border-b border-border/60">
+            <ThresholdInput
+              label="Auto-Process Threshold"
+              value={thresholdValue}
+              onChange={onThresholdChange}
+              description={
+                isDisabled
+                  ? (templateType === 'simple' && title === 'Support'
+                      ? "Automatically forward to support team when confidence >= threshold"
+                      : "Automatically process without review when confidence >= threshold")
+                  : (thresholdDescription || "Automatically send this email when confidence >= threshold")
+              }
+            />
+          </div>
+        )}
+
+        <div className={`space-y-4 transition-opacity ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
           {/* Recipient email for internal notifications */}
           {templateType === 'internal' && recipientEmail !== undefined && onRecipientEmailChange && (
             <div>
@@ -992,7 +916,7 @@ function ThresholdInput({ label, value, onChange, description, disabled = false 
   );
 }
 
-function TextInput({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+function TextInput({ label, value, onChange, onBlur, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; onBlur?: () => void; type?: string }) {
   return (
     <div>
       <label className="block mb-2 text-xs font-medium text-muted-foreground">{label}</label>
@@ -1000,6 +924,7 @@ function TextInput({ label, value, onChange, type = 'text' }: { label: string; v
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         className="w-full border border-border/60 rounded-md p-2 text-sm bg-card text-foreground h-10 transition-colors focus:border-info focus:outline-none"
       />
     </div>

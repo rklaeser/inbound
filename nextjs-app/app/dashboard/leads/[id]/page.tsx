@@ -476,8 +476,8 @@ export default function LeadDetailPage({
                 }}
               >
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>High Quality</div>
-                <div style={{ fontSize: '11px', color: '#a1a1a1', fontWeight: 400 }}>
-                  Strong fit, personalized meeting offer
+                <div style={{ fontSize: '11px', color: '#a1a1a1', fontWeight: 400, whiteSpace: 'normal' }}>
+                  Follow up
                 </div>
               </Button>
 
@@ -485,16 +485,16 @@ export default function LeadDetailPage({
                 onClick={() => handleClassify('low-quality')}
                 disabled={classifying}
                 variant="outline"
-                className="h-auto py-4 flex flex-col items-start text-left hover:bg-[rgba(245,158,11,0.1)]"
+                className="h-auto py-4 flex flex-col items-start text-left hover:bg-[rgba(161,161,161,0.1)]"
                 style={{
-                  color: '#f59e0b',
-                  borderColor: 'rgba(245,158,11,0.2)',
+                  color: '#737373',
+                  borderColor: 'rgba(161,161,161,0.2)',
                   transition: 'all 0.15s ease'
                 }}
               >
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>Low Quality</div>
-                <div style={{ fontSize: '11px', color: '#a1a1a1', fontWeight: 400 }}>
-                  Real opportunity but not a fit
+                <div style={{ fontSize: '11px', color: '#a1a1a1', fontWeight: 400, whiteSpace: 'normal' }}>
+                  Dead lead
                 </div>
               </Button>
 
@@ -510,8 +510,8 @@ export default function LeadDetailPage({
                 }}
               >
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>Support</div>
-                <div style={{ fontSize: '11px', color: '#a1a1a1', fontWeight: 400 }}>
-                  Existing customer needing help
+                <div style={{ fontSize: '11px', color: '#a1a1a1', fontWeight: 400, whiteSpace: 'normal' }}>
+                  Technical request without a sales component
                 </div>
               </Button>
 
@@ -533,22 +533,25 @@ export default function LeadDetailPage({
           <Section
             title="Research Report"
             titleExtra={
-              <div className="flex items-center gap-3">
-                {getCurrentClassification(lead) && (
-                  <ClassificationBadge lead={lead} onReclassify={handleReclassifyTo} />
-                )}
-                {lead.bot_research.confidence && (
-                  <span
-                    className="font-mono"
-                    style={{
-                      fontSize: '12px',
-                      color: '#a1a1a1'
-                    }}
-                  >
-                    {(lead.bot_research.confidence * 100).toFixed(0)}% confidence
-                  </span>
-                )}
-              </div>
+              /* Hide classification badge and confidence when in classify mode to avoid biasing human */
+              lead.status.status !== 'classify' ? (
+                <div className="flex items-center gap-3">
+                  {getCurrentClassification(lead) && (
+                    <ClassificationBadge lead={lead} onReclassify={handleReclassifyTo} />
+                  )}
+                  {lead.bot_research.confidence && (
+                    <span
+                      className="font-mono"
+                      style={{
+                        fontSize: '12px',
+                        color: '#a1a1a1'
+                      }}
+                    >
+                      {(lead.bot_research.confidence * 100).toFixed(0)}% confidence
+                    </span>
+                  )}
+                </div>
+              ) : undefined
             }
             rightContent={
               <div className="flex items-center gap-3">
@@ -559,8 +562,8 @@ export default function LeadDetailPage({
               </div>
             }
           >
-            {/* Bot Reasoning */}
-            {getCurrentClassification(lead) && lead.bot_research.reasoning && (
+            {/* Bot Reasoning - hidden in classify mode to avoid biasing human */}
+            {lead.status.status !== 'classify' && getCurrentClassification(lead) && lead.bot_research.reasoning && (
               <div className="mb-4 pb-4 border-b border-border">
                 <p
                   className="text-muted-foreground"
@@ -612,8 +615,8 @@ export default function LeadDetailPage({
               </div>
             )}
 
-            {/* Classification Eval - Inline */}
-            {lead.eval_results?.classification && (
+            {/* Classification Eval - Inline, hidden in classify mode to avoid biasing human */}
+            {lead.status.status !== 'classify' && lead.eval_results?.classification && (
               <div className="mt-4 pt-4 border-t border-border">
                 <div className="flex items-center justify-between">
                   <button

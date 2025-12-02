@@ -122,38 +122,43 @@ export default function SuccessMessage({ leadId, devModeEnabled }: SuccessMessag
 
       {/* Book a Meeting Card */}
       {sentEmail && leadId && (
-        <div className="mt-8 mb-6 p-6 rounded-md border border-border bg-background">
+        <div className="mt-8 mb-6 px-6 py-8 rounded-md border border-border bg-background relative">
+          {/* Just now badge - top right */}
+          <span className="absolute top-3 right-3 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">
+            Just now
+          </span>
+
+          <p className="text-sm text-muted-foreground mb-4">
+            Check your inbox for an email from Ryan
+          </p>
+
           <div className="flex items-center justify-between gap-4">
-            {/* Book Meeting Button - Left */}
+            {/* Book Meeting Button - unified blue button */}
             <a
               href={`/book-meeting/${leadId}`}
-              className="flex items-center gap-3 group"
+              className="inline-flex items-center gap-2 px-5 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-full transition-colors"
             >
-              <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center transition-colors group-hover:bg-blue-600">
-                <svg
-                  className="w-5 h-5 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-              </div>
-              <span className="text-base font-medium text-foreground group-hover:text-blue-500 transition-colors">
-                Book a Meeting
-              </span>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              Book a Meeting
             </a>
 
             {/* SDR Profile - Right */}
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-base font-medium text-foreground">
-                  Ryan Vercel
+                  Ryan Hemelt
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Development Manager

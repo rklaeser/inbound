@@ -17,7 +17,7 @@ export const SDR_PROFILES: Record<string, SDRProfile> = {
     firstName: 'Ryan',
     lastName: 'Hemelt',
     fullName: 'Ryan Hemelt',
-    avatar: 'https://vercel.com/api/www/avatar?u=rauchg&s=64',
+    avatar: '/profpic.jpeg',
   },
   Sarah: {
     firstName: 'Sarah',

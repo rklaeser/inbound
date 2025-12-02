@@ -51,6 +51,7 @@ export default function DashboardLayout({
   }, [pathname]);
 
   // Fetch settings to check if case studies is enabled
+  // Re-fetch when pathname changes (e.g., after leaving settings page)
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -64,7 +65,7 @@ export default function DashboardLayout({
       }
     };
     fetchSettings();
-  }, []);
+  }, [pathname]);
 
   // Build breadcrumb segments
   const getBreadcrumbSegments = () => {

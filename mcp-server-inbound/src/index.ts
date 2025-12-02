@@ -493,6 +493,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'list_case_study_urls',
+        description: 'List case study IDs, company names, and URLs only. Token-efficient alternative to list_case_studies.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'list_case_studies',
         description: 'List case studies with optional filtering by industry or product',
         inputSchema: {
@@ -855,6 +863,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'list_case_study_urls': {
+        // Lightweight query - just get IDs, company names, and URLs
+        const snapshot = await db.collection(CASE_STUDIES_COLLECTION)
+          .orderBy('company', 'asc')
+          .get();
+
+        const caseStudyUrls = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            company: data.company,
+            url: data.url,
+          };
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                case_studies: caseStudyUrls,
+                total: caseStudyUrls.length,
+              }, null, 2),
             },
           ],
         };

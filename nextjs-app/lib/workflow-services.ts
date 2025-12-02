@@ -291,9 +291,7 @@ LEAD INFORMATION:
 - Message: ${lead.message}
 
 RESEARCH REPORT:
-${researchReport}
-
-Generate ONLY the middle body content (1-2 sentences). DO NOT include greeting, sign-off, or call-to-action - these will be added automatically.`
+${researchReport}`
   });
 
   // Convert AI-generated plain text to HTML paragraphs
