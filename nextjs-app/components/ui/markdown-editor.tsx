@@ -52,7 +52,7 @@ export function MarkdownEditor({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-blue-500 underline',
+          class: 'text-blue-500 dark:text-blue-400 underline',
         },
       }),
       Markdown.configure({
@@ -64,7 +64,7 @@ export function MarkdownEditor({
     content: initialContent,
     editorProps: {
       attributes: {
-        class: `prose prose-sm prose-invert max-w-none focus:outline-none px-3 py-2`,
+        class: `prose prose-sm dark:prose-invert max-w-none focus:outline-none px-3 py-2`,
         style: `min-height: ${minHeight}`,
       },
     },
@@ -120,7 +120,7 @@ export function MarkdownEditor({
   }
 
   return (
-    <div className={`border rounded-md ${className}`} style={{ borderColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0a0a0a' }}>
+    <div className={`border border-border rounded-md bg-card ${className}`}>
       <style>{`
         .ProseMirror p {
           margin-bottom: 0.75em;
@@ -141,13 +141,13 @@ export function MarkdownEditor({
           margin-bottom: 0.5em;
         }
         .ProseMirror code {
-          background: rgba(255,255,255,0.1);
+          background: hsl(var(--muted));
           padding: 0.1em 0.3em;
           border-radius: 3px;
           font-size: 0.9em;
         }
         .ProseMirror pre {
-          background: rgba(255,255,255,0.05);
+          background: hsl(var(--muted) / 0.5);
           padding: 0.75em;
           border-radius: 4px;
           margin-bottom: 0.75em;
@@ -159,7 +159,7 @@ export function MarkdownEditor({
         }
       `}</style>
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border">
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
@@ -174,7 +174,7 @@ export function MarkdownEditor({
         >
           <Italic className="h-4 w-4" />
         </ToolbarButton>
-        <div className="w-px h-4 mx-1" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+        <div className="w-px h-4 mx-1 bg-border" />
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           isActive={editor.isActive('heading', { level: 3 })}
@@ -196,7 +196,7 @@ export function MarkdownEditor({
         >
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
-        <div className="w-px h-4 mx-1" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+        <div className="w-px h-4 mx-1 bg-border" />
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleCode().run()}
           isActive={editor.isActive('code')}
@@ -213,7 +213,7 @@ export function MarkdownEditor({
         </ToolbarButton>
 
         {/* Save status indicator */}
-        <div className="ml-auto text-xs" style={{ color: '#666' }}>
+        <div className="ml-auto text-xs text-muted-foreground">
           {saveStatus === 'saving' && 'Saving...'}
           {saveStatus === 'saved' && 'Saved'}
           {saveStatus === 'unsaved' && 'Unsaved changes'}
@@ -242,11 +242,11 @@ function ToolbarButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="p-1.5 rounded transition-colors"
-      style={{
-        backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
-        color: isActive ? '#fafafa' : '#888',
-      }}
+      className={`p-1.5 rounded transition-colors ${
+        isActive
+          ? 'bg-muted text-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+      }`}
     >
       {children}
     </button>

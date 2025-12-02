@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import type { CaseStudy } from '@/lib/case-studies/types';
 
 /**
  * Create a mock NextRequest for testing API routes
@@ -13,19 +14,16 @@ export function createMockRequest(
 ) {
   const { method = 'GET', body, headers = {} } = options;
 
-  const requestInit: RequestInit = {
+  const requestHeaders = new Headers({
+    'Content-Type': 'application/json',
+    ...headers,
+  });
+
+  return new NextRequest(new URL(url, 'http://localhost:3000'), {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-  };
-
-  if (body !== undefined) {
-    requestInit.body = JSON.stringify(body);
-  }
-
-  return new NextRequest(new URL(url, 'http://localhost:3000'), requestInit);
+    headers: requestHeaders,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
 }
 
 /**
@@ -86,11 +84,11 @@ export const sampleLead = {
 /**
  * Sample case study data for testing
  */
-export const sampleCaseStudy = {
+export const sampleCaseStudy: CaseStudy = {
   id: 'cs-123',
   company: 'TechCorp',
   industry: 'Software',
-  products: ['Next.js', 'Vercel'],
+  products: ['Next.js', 'Analytics'],
   url: 'https://vercel.com/customers/techcorp',
   logoSvg: '<svg></svg>',
   featuredText: 'TechCorp improved performance by 50%',
@@ -104,7 +102,7 @@ export const sampleConfiguration = {
     highQuality: 0.8,
     lowQuality: 0.3,
     support: 0.7,
-    duplicate: 0.9,
+    existing: 0.9,
   },
   sdr: {
     name: 'Jane Smith',
@@ -134,7 +132,7 @@ export const sampleConfiguration = {
       greeting: 'Hello,',
       body: 'Our support team will assist you.',
     },
-    duplicate: {
+    existing: {
       subject: 'Welcome back',
       greeting: 'Hello,',
       body: 'We see you are already a customer.',
@@ -143,8 +141,8 @@ export const sampleConfiguration = {
       subject: 'New support request',
       body: 'A new support request has been submitted.',
     },
-    duplicateInternal: {
-      subject: 'Duplicate lead detected',
+    existingInternal: {
+      subject: 'Existing customer detected',
       body: 'This lead is already in our CRM.',
     },
   },

@@ -258,11 +258,11 @@ export default function LeadForm({ onSuccess, devModeEnabled = false }: LeadForm
               </div>
             </div>
 
-            {/* Duplicate */}
+            {/* Existing */}
             <div className="rounded-lg bg-muted/30 p-3">
-              <Badge variant="purple" className="mb-2">Duplicate</Badge>
+              <Badge variant="purple" className="mb-2">Existing</Badge>
               <div className="flex flex-wrap gap-2">
-                {getTestCasesForClassification('duplicate').map((key) => (
+                {getTestCasesForClassification('existing').map((key) => (
                   <Button key={key} type="button" variant="outline" size="sm" onClick={() => fillTestData(key)} disabled={testRunning}>
                     {testData[key].label}
                   </Button>

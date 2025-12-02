@@ -19,7 +19,7 @@ export async function POST(
     }
 
     // Validate classification value
-    // Note: 'duplicate' is not a valid human classification - duplicates are detected
+    // Note: 'existing' is not a valid human classification - existing customers are detected
     // automatically via CRM lookup before classification runs
     const validClassifications: Classification[] = ['high-quality', 'low-quality', 'support'];
     if (!validClassifications.includes(classification)) {
@@ -61,12 +61,15 @@ export async function POST(
         const { extractFirstName, assembleEmail } = await import('@/lib/email');
 
         try {
-          const emailResult = await generateEmailForLead({
-            name: lead.submission.leadName,
-            email: lead.submission.email,
-            company: lead.submission.company,
-            message: lead.submission.message,
-          });
+          const emailResult = await generateEmailForLead(
+            {
+              name: lead.submission.leadName,
+              email: lead.submission.email,
+              company: lead.submission.company,
+              message: lead.submission.message,
+            },
+            lead.bot_research?.researchReport || ''
+          );
 
           // Assemble the full email (greeting + body + CTA + signoff + signature)
           // Note: Case studies are NOT included - they're appended at send time

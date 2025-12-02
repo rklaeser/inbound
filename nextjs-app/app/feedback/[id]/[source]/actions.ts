@@ -59,9 +59,9 @@ export async function submitFeedback(
       return { success: true };
     }
 
-    // For reroute requests, verify lead was classified as support or duplicate
-    if (currentClassification !== 'support' && currentClassification !== 'duplicate') {
-      return { success: false, error: 'Feedback is only available for support or duplicate classifications' };
+    // For reroute requests, verify lead was classified as support or existing
+    if (currentClassification !== 'support' && currentClassification !== 'existing') {
+      return { success: false, error: 'Feedback is only available for support or existing classifications' };
     }
 
     // Check if already rerouted

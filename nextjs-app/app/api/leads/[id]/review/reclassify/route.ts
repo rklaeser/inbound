@@ -12,12 +12,12 @@ import { extractFirstName, assembleEmail } from "@/lib/email";
 import {
   sendLowQualityEmail,
   sendSupportEmail,
-  sendDuplicateEmail,
+  sendExistingEmail,
 } from "@/lib/email/classification-emails";
 import { generateEmailForLead } from "@/lib/workflow-services";
 
 const reclassifySchema = z.object({
-  new_classification: z.enum(["high-quality", "low-quality", "support", "duplicate"]),
+  new_classification: z.enum(["high-quality", "low-quality", "support", "existing"]),
 });
 
 export async function POST(
@@ -59,8 +59,12 @@ export async function POST(
       classifications: updatedClassifications,
     };
 
-    // For high-quality: generate email and stay in review
+    // For high-quality: generate email and explicitly set to review status
+    // High-quality leads should NEVER auto-send - they always need human review
     if (new_classification === "high-quality") {
+      // Explicitly set status to review so human can edit and approve email
+      updateData["status.status"] = "review";
+
       try {
         const leadData = {
           name: lead.submission.leadName,
@@ -68,7 +72,10 @@ export async function POST(
           company: lead.submission.company,
           message: lead.submission.message,
         };
-        const emailGenerated = await generateEmailForLead(leadData);
+        const emailGenerated = await generateEmailForLead(
+          leadData,
+          lead.bot_research?.researchReport || ''
+        );
 
         // Assemble the full email (greeting + body + CTA + signoff + signature)
         const config = await getConfiguration();
@@ -95,10 +102,10 @@ export async function POST(
         console.error("Failed to generate high-quality email on reclassify:", err);
         // Continue without generating email - human can write it manually
       }
-      // Update classification only, stay in review for email approval
+      // Update classification and status to review for email approval
       await adminDb.collection("leads").doc(id).update(updateData);
     } else {
-      // For support, duplicate, low-quality: send email first, then update status
+      // For support, existing, low-quality: send email first, then update status
       const config = await getConfiguration();
       const testModeEmail = config.email.testMode ? config.email.testEmail : null;
 
@@ -113,8 +120,8 @@ export async function POST(
         const result = await sendSupportEmail({ lead, config, testModeEmail });
         emailSent = result.success;
         sentEmailContent = result.sentContent;
-      } else if (new_classification === "duplicate") {
-        const result = await sendDuplicateEmail({ lead, config, testModeEmail });
+      } else if (new_classification === "existing") {
+        const result = await sendExistingEmail({ lead, config, testModeEmail });
         emailSent = result.success;
         sentEmailContent = result.sentContent;
       }
@@ -131,7 +138,7 @@ export async function POST(
         // Log forwarding events for auto-forwarded classifications
         if (new_classification === "support") {
           await logLeadForwardedEvent(lead, "support", "system");
-        } else if (new_classification === "duplicate") {
+        } else if (new_classification === "existing") {
           await logLeadForwardedEvent(lead, "account_team", "system");
         }
       }

@@ -2,7 +2,7 @@
  * Mock Salesforce CRM Data
  *
  * This simulates existing customers in a CRM system.
- * Used to detect duplicate leads that should be routed to Account Team
+ * Used to detect existing customer leads that should be routed to Account Team
  * instead of being treated as new leads.
  */
 
@@ -132,10 +132,10 @@ export function salesforceSearch(email: string, company?: string): SalesforceCon
 }
 
 /**
- * Get duplicate detection metadata for a lead
+ * Get existing customer detection metadata for a lead
  */
-export interface DuplicateDetectionResult {
-  isDuplicate: boolean;
+export interface ExistingCustomerResult {
+  isExisting: boolean;
   matchedContact?: SalesforceContact;
   matchReason?: string;
 }
@@ -147,11 +147,11 @@ export function getCustomerById(id: string): SalesforceContact | null {
   return MOCK_CRM_CUSTOMERS.find(contact => contact.id === id) || null;
 }
 
-export function detectDuplicate(email: string, company?: string): DuplicateDetectionResult {
+export function detectExistingCustomer(email: string, company?: string): ExistingCustomerResult {
   const match = salesforceSearch(email, company);
 
   if (!match) {
-    return { isDuplicate: false };
+    return { isExisting: false };
   }
 
   let matchReason = '';
@@ -165,7 +165,7 @@ export function detectDuplicate(email: string, company?: string): DuplicateDetec
   }
 
   return {
-    isDuplicate: true,
+    isExisting: true,
     matchedContact: match,
     matchReason,
   };

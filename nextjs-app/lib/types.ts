@@ -10,7 +10,7 @@ export type Classification =
   | 'high-quality'      // Strong fit, gets personalized meeting offer email
   | 'low-quality'       // Not a fit or spam/nonsense, gets generic sales email
   | 'support'           // Existing customer needing help, forwarded to support
-  | 'duplicate';        // Already a customer in CRM, forwarded to account team
+  | 'existing';         // Already a customer in CRM, forwarded to account team
 
 // Status types - where is this lead in the workflow?
 // processing: workflow is running (lead just submitted, AI processing in progress)
@@ -24,7 +24,7 @@ export type TerminalState =
   | 'sent_meeting_offer'      // high-quality lead, personalized email sent
   | 'sent_generic'            // low-quality lead, generic sales email sent
   | 'forwarded_support'       // support lead, forwarded to support team
-  | 'forwarded_account_team'; // duplicate lead, forwarded to account team
+  | 'forwarded_account_team'; // existing customer lead, forwarded to account team
 
 // =============================================================================
 // REROUTE DATA MODEL
@@ -89,10 +89,10 @@ export const CLASSIFICATIONS: Record<Classification, ClassificationConfig> = {
       border: 'rgba(59, 130, 246, 0.35)',
     },
   },
-  duplicate: {
-    key: 'duplicate',
-    label: 'Duplicate',
-    description: 'Duplicate submission from existing customer',
+  existing: {
+    key: 'existing',
+    label: 'Existing',
+    description: 'Existing customer in CRM',
     colors: {
       text: '#9333ea',
       background: 'rgba(168, 85, 247, 0.15)',
@@ -278,6 +278,29 @@ export interface Lead {
   // Reroute information (optional - set when lead is rerouted by customer or internal team)
   // Only one reroute per lead is supported
   reroute?: Reroute;
+
+  // Evaluation results (optional - populated when eval is run)
+  eval_results?: {
+    classification?: {
+      score: number;              // 1-5
+      pass: boolean;
+      reasoning: string;
+      evaluated_at: Date | Timestamp;
+      model: string;              // e.g., "gpt-4o"
+    };
+    email?: {
+      scores: {
+        relevant: number;   // 1-5: Does it address their specific stated need?
+        direct: number;     // 1-5: Is it concise and to the point?
+        active: number;     // 1-5: Does it use action-oriented language?
+      };
+      overall: number;
+      pass: boolean;
+      summary: string;
+      evaluated_at: Date | Timestamp;
+      model: string;
+    };
+  };
 }
 
 // =============================================================================
@@ -295,7 +318,7 @@ export function getTerminalState(lead: Lead): TerminalState | null {
     case 'high-quality': return 'sent_meeting_offer';
     case 'low-quality': return 'sent_generic';
     case 'support': return 'forwarded_support';
-    case 'duplicate': return 'forwarded_account_team';
+    case 'existing': return 'forwarded_account_team';
     default: return null;
   }
 }
@@ -327,7 +350,7 @@ export const TYPE_FILTER_OPTIONS = [
   { key: 'high-quality', label: 'High Quality', color: '#16a34a' },        // green-600
   { key: 'low-quality', label: 'Low Quality', color: '#525252' },          // neutral-600
   { key: 'support', label: 'Support', color: '#2563eb' },                  // blue-600
-  { key: 'duplicate', label: 'Duplicate', color: '#9333ea' },              // purple-600
+  { key: 'existing', label: 'Existing', color: '#9333ea' },                // purple-600
   { key: 'rerouted', label: 'Rerouted', color: '#d97706' },                // amber-600 (leads with reroute field set)
   { key: 'unclassified', label: 'Unclassified', color: '#ea580c' },        // orange-600
 ];
@@ -346,7 +369,7 @@ export interface Configuration {
     highQuality: number;    // Default 0.98 - auto-send meeting offer (only if allowHighQualityAutoSend is true)
     lowQuality: number;     // Default 0.51 - auto-send generic email
     support: number;        // Default 0.9 - auto-forward to support
-    // Note: duplicate threshold removed - duplicates always auto-forward via deterministic CRM check
+    // Note: existing threshold removed - existing customers always auto-forward via deterministic CRM check
   };
 
   // High-quality leads require human review by default since they offer meetings
@@ -385,7 +408,7 @@ export interface Configuration {
       greeting: string;
       body: string;
     };
-    duplicate: {
+    existing: {
       subject: string;
       greeting: string;
       body: string;
@@ -395,7 +418,7 @@ export interface Configuration {
       subject: string;
       body: string;
     };
-    duplicateInternal: {
+    existingInternal: {
       subject: string;
       body: string;
     };
@@ -404,6 +427,9 @@ export interface Configuration {
   prompts: {
     classification: string;
     emailHighQuality: string;
+    // Evaluation prompts (LLM-as-judge)
+    classificationEval: string;
+    emailHighQualityEval: string;
   };
 
   rollout: {
@@ -423,6 +449,13 @@ export interface Configuration {
   // Experimental features
   experimental: {
     caseStudies: boolean;  // When true, case studies are shown on lead detail page and appended to emails
+  };
+
+  // Response to lead toggles - when false, no customer email is sent for these classifications
+  responseToLead: {
+    lowQuality: boolean;    // default: false - no generic email to customer
+    support: boolean;       // default: false - no acknowledgment to customer (still forwards internally)
+    existing: boolean;      // default: false - no acknowledgment to customer (still forwards internally)
   };
 
   updated_at: Date | Timestamp;

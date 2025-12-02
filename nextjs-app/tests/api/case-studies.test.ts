@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockRequest, createMockParams, sampleCaseStudy } from '../helpers';
+import type { CaseStudy } from '@/lib/case-studies/types';
 
 // Mock the case-studies module
 vi.mock('@/lib/case-studies', () => ({
@@ -26,7 +27,7 @@ describe('GET /api/case-studies', () => {
   });
 
   it('returns all case studies without embeddings', async () => {
-    const caseStudies = [
+    const caseStudies: (CaseStudy & { embedding: number[] })[] = [
       { ...sampleCaseStudy, embedding: [0.1, 0.2, 0.3] },
       { ...sampleCaseStudy, id: 'cs-456', company: 'OtherCorp', embedding: [0.4, 0.5, 0.6] },
     ];

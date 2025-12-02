@@ -11,7 +11,7 @@ import {
   sendHighQualityEmail,
   sendLowQualityEmail,
   sendSupportEmail,
-  sendDuplicateEmail,
+  sendExistingEmail,
 } from "@/lib/email/classification-emails";
 
 export async function POST(
@@ -36,6 +36,15 @@ export async function POST(
       return ApiErrors.badRequest("Lead has no classification");
     }
 
+    // Helper to check if customer email should be sent based on responseToLead settings
+    const shouldSendCustomerEmail = (classification: string): boolean => {
+      if (classification === 'high-quality') return true;
+      if (classification === 'low-quality') return config.responseToLead?.lowQuality ?? false;
+      if (classification === 'support') return config.responseToLead?.support ?? false;
+      if (classification === 'existing') return config.responseToLead?.existing ?? false;
+      return false;
+    };
+
     // Send email based on classification
     let emailSent = false;
     let sentEmailContent: { subject: string; html: string } | null = null;
@@ -51,15 +60,23 @@ export async function POST(
       emailSent = result.success;
       sentEmailContent = result.sentContent;
     } else if (currentClassification === "low-quality") {
-      const result = await sendLowQualityEmail({ lead, config, testModeEmail });
-      emailSent = result.success;
-      sentEmailContent = result.sentContent;
+      if (shouldSendCustomerEmail("low-quality")) {
+        const result = await sendLowQualityEmail({ lead, config, testModeEmail });
+        emailSent = result.success;
+        sentEmailContent = result.sentContent;
+      } else {
+        // No email sent, but still mark as done
+        emailSent = true;
+        sentEmailContent = null;
+      }
     } else if (currentClassification === "support") {
-      const result = await sendSupportEmail({ lead, config, testModeEmail });
+      const skipCustomer = !shouldSendCustomerEmail("support");
+      const result = await sendSupportEmail({ lead, config, testModeEmail, skipCustomerEmail: skipCustomer });
       emailSent = result.success;
       sentEmailContent = result.sentContent;
-    } else if (currentClassification === "duplicate") {
-      const result = await sendDuplicateEmail({ lead, config, testModeEmail });
+    } else if (currentClassification === "existing") {
+      const skipCustomer = !shouldSendCustomerEmail("existing");
+      const result = await sendExistingEmail({ lead, config, testModeEmail, skipCustomerEmail: skipCustomer });
       emailSent = result.success;
       sentEmailContent = result.sentContent;
     }
@@ -83,10 +100,10 @@ export async function POST(
     const timeToApprovalMs = now.getTime() - toMillis(lead.status.received_at);
     await logEmailApprovalEvent(lead, timeToApprovalMs);
 
-    // Log forwarding if it's a support/duplicate lead
+    // Log forwarding if it's a support/existing customer lead
     if (currentClassification === "support") {
       await logLeadForwardedEvent(lead, "support", "system");
-    } else if (currentClassification === "duplicate") {
+    } else if (currentClassification === "existing") {
       await logLeadForwardedEvent(lead, "account_team", "system");
     }
 

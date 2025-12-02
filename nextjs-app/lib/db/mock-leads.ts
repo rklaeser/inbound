@@ -52,9 +52,9 @@ export const testData = {
       message: 'Just checking out your product. Maybe interested.',
     },
   },
-  duplicate: {
-    label: 'Duplicate',
-    expectedClassification: 'duplicate' as const,
+  existing: {
+    label: 'Existing',
+    expectedClassification: 'existing' as const,
     data: {
       name: 'Jessica Brown',
       email: 'jessica.brown@stripe.com',
@@ -106,10 +106,10 @@ export const testData = {
     label: 'Borderline support',
     expectedClassification: 'high-quality' as const,
     data: {
-      name: 'David Chen',
-      email: 'david.chen@linear.app',
+      name: 'Tom Moor',
+      email: 'tom@linear.app',
       company: 'Linear',
-      message: 'I\'m having trouble with caching on my site - my pages keep showing stale data after deployments. Is this a limitation of my plan or am I doing something wrong? I\'d consider upgrading to enterprise if that would fix it.',
+      message: 'We\'re having trouble with caching on our site - pages keep showing stale data after deployments. Is this a limitation of our plan or are we doing something wrong? We\'d consider upgrading to enterprise if that would fix it.',
     },
   },
 } as const;

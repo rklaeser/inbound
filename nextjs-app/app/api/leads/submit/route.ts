@@ -9,7 +9,7 @@ import { start } from "workflow/api";
 import { workflowInbound } from "@/workflows/inbound";
 import { getConfiguration } from "@/lib/configuration-helpers";
 import { getCachedCaseStudies } from "@/lib/case-studies";
-import { detectDuplicate } from "@/lib/db/mock-crm";
+import { detectExistingCustomer } from "@/lib/db/mock-crm";
 
 // Validation schema
 const leadFormSchema = z.object({
@@ -44,25 +44,25 @@ export async function POST(request: NextRequest) {
     const leadData = validationResult.data;
     const now = new Date();
 
-    // Step 1: Check for duplicates BEFORE any AI processing
+    // Step 1: Check for existing customers BEFORE any AI processing
     // This is deterministic and should always run regardless of AI classification rate
-    const duplicateResult = detectDuplicate(leadData.email, leadData.company);
+    const existingResult = detectExistingCustomer(leadData.email, leadData.company);
 
-    if (duplicateResult.isDuplicate && duplicateResult.matchedContact) {
-      console.log(`[API] Duplicate detected: ${duplicateResult.matchReason}`);
+    if (existingResult.isExisting && existingResult.matchedContact) {
+      console.log(`[API] Existing customer detected: ${existingResult.matchReason}`);
 
-      // Create bot_research for the duplicate
+      // Create bot_research for the existing customer
       const bot_research: BotResearch = {
         timestamp: now,
         confidence: 0.99,
-        classification: 'duplicate',
-        reasoning: `CRM match: ${duplicateResult.matchReason}. Customer: ${duplicateResult.matchedContact.company} (${duplicateResult.matchedContact.accountType})`,
+        classification: 'existing',
+        reasoning: `CRM match: ${existingResult.matchReason}. Customer: ${existingResult.matchedContact.company} (${existingResult.matchedContact.accountType})`,
         existingCustomer: true,
-        crmRecordId: duplicateResult.matchedContact.id,
+        crmRecordId: existingResult.matchedContact.id,
       };
 
       // Create lead document marked as done (auto-forwarded)
-      const duplicateLead: Omit<Lead, 'id'> = {
+      const existingLead: Omit<Lead, 'id'> = {
         submission: {
           leadName: leadData.name,
           email: leadData.email,
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
           rollOut: 0,
           useBot: true,
         },
-        email: null,  // No email for duplicates
+        email: null,  // No email for existing customers
         status: {
           status: 'done',
           received_at: now,
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         },
         classifications: [{
           author: 'bot',
-          classification: 'duplicate',
+          classification: 'existing',
           timestamp: now,
           needs_review: false,
           applied_threshold: 0,
@@ -98,15 +98,15 @@ export async function POST(request: NextRequest) {
         }),
       };
 
-      const leadRef = await adminDb.collection("leads").add(duplicateLead);
+      const leadRef = await adminDb.collection("leads").add(existingLead);
 
-      console.log(`[API] Duplicate lead ${leadRef.id} auto-forwarded to account team`);
+      console.log(`[API] Existing customer lead ${leadRef.id} auto-forwarded to account team`);
 
       return NextResponse.json({
         success: true,
         leadId: leadRef.id,
-        isDuplicate: true,
-        matchedCustomer: duplicateResult.matchedContact.company,
+        isExisting: true,
+        matchedCustomer: existingResult.matchedContact.company,
       });
     }
 

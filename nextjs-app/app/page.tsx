@@ -40,18 +40,21 @@ export default function CustomerPage() {
       <div className="absolute top-0 left-0 right-0 p-6 z-10">
         <div className="flex items-center justify-between">
           {/* Vercel Branding */}
-          <div className="flex items-center gap-2">
+          <a
+            href="/"
+            className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+          >
             <VercelLogo height={20} />
             <span className="text-base font-medium text-foreground">
               Vercel
             </span>
-          </div>
+          </a>
 
           {/* Header Actions */}
           <div className="flex items-center gap-3">
             {/* Dashboard Button */}
             <Button asChild variant="outline" size="sm">
-              <a href="/dashboard">Dashboard</a>
+              <a href="/dashboard">SDR Dashboard</a>
             </Button>
 
             {/* Dev Mode Toggle */}

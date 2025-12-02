@@ -77,13 +77,15 @@ export async function updateConfiguration(
  * Initialize default configuration (for new setups)
  */
 export async function initializeConfiguration(): Promise<void> {
-  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT } = await import('./settings-defaults');
+  const { CLASSIFICATION_PROMPT, EMAIL_GENERATION_PROMPT, CLASSIFICATION_EVAL_PROMPT, EMAIL_HIGH_QUALITY_EVAL_PROMPT } = await import('./settings-defaults');
 
   const defaultConfig: Configuration = {
     ...DEFAULT_CONFIGURATION,
     prompts: {
       classification: CLASSIFICATION_PROMPT,
       emailHighQuality: EMAIL_GENERATION_PROMPT,
+      classificationEval: CLASSIFICATION_EVAL_PROMPT,
+      emailHighQualityEval: EMAIL_HIGH_QUALITY_EVAL_PROMPT,
     },
     updated_at: new Date(),
     updated_by: 'system',
@@ -147,8 +149,8 @@ export function getThresholdForClassification(
       return config.thresholds.lowQuality;
     case 'support':
       return config.thresholds.support;
-    case 'duplicate':
-      // Duplicates are handled deterministically by CRM check before this is called
+    case 'existing':
+      // Existing customers are handled deterministically by CRM check before this is called
       // Return 0 to always pass threshold if this is somehow reached
       return 0;
     default:

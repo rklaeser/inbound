@@ -45,14 +45,14 @@ type Classification =
   | 'high-quality'      // Strong fit, gets personalized meeting offer email
   | 'low-quality'       // Not a fit or spam/nonsense, gets generic sales email
   | 'support'           // Existing customer needing help, forwarded to support
-  | 'duplicate';        // Already a customer in CRM, forwarded to account team
+  | 'existing';         // Already a customer in CRM, forwarded to account team
 
 // Terminal state - derived from status + classification when status = 'done'
 type TerminalState =
   | 'sent_meeting_offer'      // high-quality lead, personalized email sent
   | 'sent_generic'            // low-quality lead, generic sales email sent
   | 'forwarded_support'       // support lead, forwarded to support team
-  | 'forwarded_account_team'; // duplicate lead, forwarded to account team
+  | 'forwarded_account_team'; // existing customer lead, forwarded to account team
 
 // Reroute source - who initiated the reroute
 type RerouteSource = 'customer' | 'support' | 'sales';
@@ -336,7 +336,7 @@ function determineWorkflowStatus(lead: any): {
       'high-quality': 'Meeting offer email sent',
       'low-quality': 'Generic sales email sent',
       'support': 'Forwarded to support team',
-      'duplicate': 'Forwarded to account team',
+      'existing': 'Forwarded to account team',
     };
     nextAction = actionMap[currentClassification] || info.action;
   }
@@ -432,7 +432,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             classification: {
               type: 'string',
               description: 'Filter by current classification type',
-              enum: ['high-quality', 'low-quality', 'support', 'duplicate'],
+              enum: ['high-quality', 'low-quality', 'support', 'existing'],
             },
             limit: {
               type: 'number',

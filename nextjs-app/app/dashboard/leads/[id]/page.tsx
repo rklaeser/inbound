@@ -50,6 +50,10 @@ export default function LeadDetailPage({
   // Timeline highlight state (for #timeline hash navigation)
   const [highlightTimeline, setHighlightTimeline] = useState(false);
 
+  // Eval dropdown state
+  const [isClassificationEvalExpanded, setIsClassificationEvalExpanded] = useState(false);
+  const [isEmailEvalExpanded, setIsEmailEvalExpanded] = useState(false);
+
   // Subscribe to configuration for email templates
   useEffect(() => {
     const configRef = doc(db, 'settings', 'configuration');
@@ -98,8 +102,8 @@ export default function LeadDetailPage({
         const template = configuration.emailTemplates?.support || defaultTemplates.support;
         return template.subject.replace('{firstName}', firstName);
       }
-      case 'duplicate': {
-        const template = configuration.emailTemplates?.duplicate || defaultTemplates.duplicate;
+      case 'existing': {
+        const template = configuration.emailTemplates?.existing || defaultTemplates.existing;
         return template.subject.replace('{firstName}', firstName);
       }
       default:
@@ -135,26 +139,26 @@ export default function LeadDetailPage({
           .replace(/{company}/g, lead.submission.company);
         return `${supportGreeting}${supportBody}`;
       }
-      case 'duplicate': {
+      case 'existing': {
         // Templates are HTML - replace all placeholders
-        const duplicateTemplate = configuration.emailTemplates?.duplicate || defaultTemplates.duplicate;
-        const duplicateGreeting = duplicateTemplate.greeting.replace('{firstName}', firstName);
-        const duplicateBody = duplicateTemplate.body
+        const existingTemplate = configuration.emailTemplates?.existing || defaultTemplates.existing;
+        const existingGreeting = existingTemplate.greeting.replace('{firstName}', firstName);
+        const existingBody = existingTemplate.body
           .replace(/{baseUrl}/g, getBaseUrl())
           .replace(/{leadId}/g, lead.id)
           .replace(/{company}/g, lead.submission.company);
-        return `${duplicateGreeting}${duplicateBody}`;
+        return `${existingGreeting}${existingBody}`;
       }
       default:
         return null;
     }
   };
 
-  // Get internal email content for support/duplicate - returns HTML for display
+  // Get internal email content for support/existing - returns HTML for display
   const getInternalEmailForClassification = (): string | null => {
     if (!lead || !configuration) return null;
     const classification = getCurrentClassification(lead);
-    if (classification !== 'support' && classification !== 'duplicate') return null;
+    if (classification !== 'support' && classification !== 'existing') return null;
 
     const firstName = extractFirstName(lead.submission.leadName);
     const defaultTemplates = DEFAULT_CONFIGURATION.emailTemplates;
@@ -171,8 +175,8 @@ export default function LeadDetailPage({
         .replace(/{leadId}/g, lead.id);
     }
 
-    if (classification === 'duplicate') {
-      const template = configuration.emailTemplates?.duplicateInternal || defaultTemplates.duplicateInternal;
+    if (classification === 'existing') {
+      const template = configuration.emailTemplates?.existingInternal || defaultTemplates.existingInternal;
       return template.body
         .replace(/{firstName}/g, firstName)
         .replace(/{email}/g, lead.submission.email)
@@ -190,26 +194,39 @@ export default function LeadDetailPage({
     if (!lead) return null;
     const classification = getCurrentClassification(lead);
     if (classification === 'support') return 'Support Team';
-    if (classification === 'duplicate') return 'Account Team';
+    if (classification === 'existing') return 'Account Team';
     return null;
+  };
+
+  // Check if customer email should be shown based on classification and config
+  const shouldShowCustomerEmail = (): boolean => {
+    if (!lead || !configuration) return false;
+    const classification = getCurrentClassification(lead);
+    if (classification === 'high-quality') return true;
+    if (classification === 'low-quality') return configuration.responseToLead?.lowQuality ?? false;
+    if (classification === 'support') return configuration.responseToLead?.support ?? false;
+    if (classification === 'existing') return configuration.responseToLead?.existing ?? false;
+    return false;
   };
 
   // Get button text based on classification
   const getReplyButtonText = (): string => {
-    if (!lead) return 'Reply';
+    if (!lead || !configuration) return 'Reply';
     const classification = getCurrentClassification(lead);
-    if (classification === 'support' || classification === 'duplicate') {
+
+    // When customer email is disabled, just forward internally
+    if (classification === 'support' && !configuration.responseToLead?.support) {
+      return 'Forward to Support';
+    }
+    if (classification === 'existing' && !configuration.responseToLead?.existing) {
+      return 'Forward to Account Team';
+    }
+
+    // Original logic
+    if (classification === 'support' || classification === 'existing') {
       return 'Reply & Forward';
     }
     return 'Reply';
-  };
-
-  // Get button color based on classification
-  const getReplyButtonColor = (): string => {
-    if (!lead) return '#22c55e';
-    const classification = getCurrentClassification(lead);
-    if (!classification) return '#22c55e';
-    return CLASSIFICATIONS[classification].colors.text;
   };
 
   useEffect(() => {
@@ -442,7 +459,7 @@ export default function LeadDetailPage({
       {(lead.status.status === 'classify' || (lead.status.status === 'review' && lead.classifications.length === 0)) && (
         <div className="mb-6">
           <Section title="Classify">
-            {/* Note: AI prediction is intentionally hidden during human classification to avoid bias */}
+            {/* Note: Bot prediction is intentionally hidden during human classification to avoid bias */}
             {/* The Research Report section below can still be expanded if needed */}
 
             {/* Classification Buttons */}
@@ -538,11 +555,11 @@ export default function LeadDetailPage({
                 {lead.bot_research.timestamp && (
                   <Attribution date={lead.bot_research.timestamp} by={null} />
                 )}
-                <span title="Generated by AI">🤖</span>
+                <span title="Generated by Bot">🤖</span>
               </div>
             }
           >
-            {/* AI Reasoning */}
+            {/* Bot Reasoning */}
             {getCurrentClassification(lead) && lead.bot_research.reasoning && (
               <div className="mb-4 pb-4 border-b border-border">
                 <p
@@ -595,11 +612,71 @@ export default function LeadDetailPage({
               </div>
             )}
 
+            {/* Classification Eval - Inline */}
+            {lead.eval_results?.classification && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setIsClassificationEvalExpanded(!isClassificationEvalExpanded)}
+                    className="flex items-center gap-2 text-sm hover:text-[#fafafa] transition-colors"
+                    style={{ color: '#a1a1a1' }}
+                  >
+                    <ChevronRight
+                      className={`h-4 w-4 transition-transform ${isClassificationEvalExpanded ? 'rotate-90' : ''}`}
+                    />
+                    <span>Classification Eval</span>
+                  </button>
+                  <span
+                    className="px-2 py-0.5 rounded text-xs font-medium font-mono"
+                    style={{
+                      backgroundColor: lead.eval_results.classification.pass
+                        ? 'rgba(34, 197, 94, 0.15)'
+                        : 'rgba(239, 68, 68, 0.15)',
+                      color: lead.eval_results.classification.pass ? '#22c55e' : '#ef4444',
+                    }}
+                  >
+                    {lead.eval_results.classification.score}/5
+                  </span>
+                </div>
+                {isClassificationEvalExpanded && (
+                  <div className="mt-3 p-3 bg-background border border-border rounded-md">
+                    <p className="text-sm text-muted-foreground" style={{ lineHeight: '1.6' }}>
+                      {lead.eval_results.classification.reasoning}
+                    </p>
+                    <p className="text-xs text-muted-foreground/50 mt-2">
+                      Model: {lead.eval_results.classification.model}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
           </Section>
         )}
 
-        {/* Email - Show for all classified leads (wait for configuration) */}
-        {getCurrentClassification(lead) && configuration && (
+        {/* Low Quality Confirm - Show when low-quality and customer email is disabled */}
+        {getCurrentClassification(lead) === 'low-quality' && configuration && !shouldShowCustomerEmail() && lead.status.status !== 'done' && (
+          <Section
+            title="Confirm Classification"
+            rightContent={
+              <Button
+                onClick={handleApprove}
+                disabled={isSending}
+                size="sm"
+                variant="info"
+              >
+                {isSending ? 'Confirming...' : 'Confirm Low Quality'}
+              </Button>
+            }
+          >
+            <p className="text-sm text-muted-foreground">
+              No customer email will be sent. Click to confirm and mark as done.
+            </p>
+          </Section>
+        )}
+
+        {/* Email - Show for classified leads when customer email is enabled */}
+        {getCurrentClassification(lead) && configuration && shouldShowCustomerEmail() && (
           <Section
             title="Email"
             rightContent={lead.status.status === 'done' ? (
@@ -619,7 +696,7 @@ export default function LeadDetailPage({
                 onClick={handleApprove}
                 disabled={isSending}
                 size="sm"
-                variant="light"
+                variant="info"
               >
                 {isSending ? 'Sending...' : getReplyButtonText()}
               </Button>
@@ -694,6 +771,50 @@ export default function LeadDetailPage({
                 )}
               </>
             )}
+
+            {/* Email Eval - Inline (high-quality only) */}
+            {getCurrentClassification(lead) === 'high-quality' && lead.eval_results?.email && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setIsEmailEvalExpanded(!isEmailEvalExpanded)}
+                    className="flex items-center gap-2 text-sm hover:text-[#fafafa] transition-colors"
+                    style={{ color: '#a1a1a1' }}
+                  >
+                    <ChevronRight
+                      className={`h-4 w-4 transition-transform ${isEmailEvalExpanded ? 'rotate-90' : ''}`}
+                    />
+                    <span>Email Eval</span>
+                  </button>
+                  <span
+                    className="px-2 py-0.5 rounded text-xs font-medium font-mono"
+                    style={{
+                      backgroundColor: lead.eval_results.email.pass
+                        ? 'rgba(34, 197, 94, 0.15)'
+                        : 'rgba(239, 68, 68, 0.15)',
+                      color: lead.eval_results.email.pass ? '#22c55e' : '#ef4444',
+                    }}
+                  >
+                    {lead.eval_results.email.overall}/5
+                  </span>
+                </div>
+                {isEmailEvalExpanded && (
+                  <div className="mt-3 p-3 bg-background border border-border rounded-md">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <ScoreChip label="Relevant" score={lead.eval_results.email.scores.relevant} />
+                      <ScoreChip label="Direct" score={lead.eval_results.email.scores.direct} />
+                      <ScoreChip label="Active" score={lead.eval_results.email.scores.active} />
+                    </div>
+                    <p className="text-sm text-muted-foreground" style={{ lineHeight: '1.6' }}>
+                      {lead.eval_results.email.summary}
+                    </p>
+                    <p className="text-xs text-muted-foreground/50 mt-2">
+                      Model: {lead.eval_results.email.model}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </Section>
         )}
 
@@ -717,8 +838,8 @@ export default function LeadDetailPage({
           </Section>
         )}
 
-        {/* Internal Email - Show for support/duplicate classifications */}
-        {(getCurrentClassification(lead) === 'support' || getCurrentClassification(lead) === 'duplicate') && (
+        {/* Internal Email - Show for support/existing classifications */}
+        {(getCurrentClassification(lead) === 'support' || getCurrentClassification(lead) === 'existing') && configuration && (
           <Section
             title={`Internal Email to ${getInternalEmailRecipient()}`}
             rightContent={lead.status.status === 'done' ? (
@@ -733,6 +854,16 @@ export default function LeadDetailPage({
                 <Check className="h-3.5 w-3.5" />
                 <span style={{ fontSize: '12px', fontWeight: 500 }}>Sent</span>
               </div>
+            ) : !shouldShowCustomerEmail() ? (
+              // When customer email is disabled, show the forward action button here
+              <Button
+                onClick={handleApprove}
+                disabled={isSending}
+                size="sm"
+                variant="info"
+              >
+                {isSending ? 'Forwarding...' : getReplyButtonText()}
+              </Button>
             ) : (
               <div
                 className="px-2.5 py-1 rounded-md"
@@ -759,9 +890,9 @@ export default function LeadDetailPage({
           </Section>
         )}
 
-        {/* AI vs Human Classification Comparison - Show for done leads where human classified */}
+        {/* Bot vs Human Classification Comparison - Show for done leads where human classified */}
         {lead.status.status === 'done' && lead.bot_research && lead.classifications.length > 0 && lead.classifications[0].author === 'human' && (
-          <Section title="AI vs Human Comparison">
+          <Section title="Bot vs Human Comparison">
             <div className="space-y-4">
               {/* Comparison Result */}
               <div className="flex items-center gap-4">
@@ -794,7 +925,7 @@ export default function LeadDetailPage({
 
               {/* Side by side comparison */}
               <div className="grid grid-cols-2 gap-4">
-                {/* AI Classification */}
+                {/* Bot Classification */}
                 <div
                   className="p-4 rounded-md"
                   style={{
@@ -807,7 +938,7 @@ export default function LeadDetailPage({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#a1a1a1' }}>
-                      AI Would Have Classified
+                      Bot Would Have Classified
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -877,8 +1008,8 @@ export default function LeadDetailPage({
               {/* Note about comparison type */}
               <p style={{ fontSize: '11px', color: '#444' }}>
                 {lead.classifications.length === 1
-                  ? 'This was a blind comparison - the human classified without seeing the AI\'s prediction first.'
-                  : 'This was an override - the human reviewed and changed the AI\'s classification.'}
+                  ? 'This was a blind comparison - the human classified without seeing the Bot\'s prediction first.'
+                  : 'This was an override - the human reviewed and changed the Bot\'s classification.'}
               </p>
             </div>
           </Section>
@@ -910,20 +1041,20 @@ export default function LeadDetailPage({
               let reason: string | undefined;
 
               if (c.author === 'bot' && lead.bot_research) {
-                // AI classification - show reasoning
-                if (c.classification === 'duplicate') {
+                // Bot classification - show reasoning
+                if (c.classification === 'existing') {
                   reason = lead.bot_research.reasoning;
                 } else {
                   const confidencePct = Math.round(lead.bot_research.confidence * 100);
                   reason = `${confidencePct}% confidence. ${lead.bot_research.reasoning}`;
                 }
               } else if (c.author === 'human' && lead.bot_research) {
-                // Human classification - show if they agreed or disagreed with AI
+                // Human classification - show if they agreed or disagreed with Bot
                 const aiClassification = lead.bot_research.classification;
                 if (c.classification === aiClassification) {
-                  reason = `Agreed with AI classification`;
+                  reason = `Agreed with Bot classification`;
                 } else {
-                  reason = `Changed from AI's "${getClassificationLabel(aiClassification)}" classification`;
+                  reason = `Changed from Bot's "${getClassificationLabel(aiClassification)}" classification`;
                 }
               }
 
@@ -974,7 +1105,7 @@ export default function LeadDetailPage({
                 // Deterministic rule (duplicate)
                 sentReason = 'Auto-forwarded by system rule (existing customer detected)';
               } else if (sentBy === 'bot' && lead.bot_research) {
-                // AI auto-send - find the bot classification to get the applied threshold
+                // Bot auto-send - find the bot classification to get the applied threshold
                 const botClassification = lead.classifications.find(c => c.author === 'bot');
                 const confidencePct = Math.round(lead.bot_research.confidence * 100);
                 if (botClassification?.applied_threshold) {
@@ -990,7 +1121,7 @@ export default function LeadDetailPage({
                 <TimelineItem
                   label="Sent"
                   timestamp={lead.status.sent_at}
-                  actor={sentBy === 'bot' ? 'Lead Agent' : sentBy === 'system' ? 'System' : sentBy || undefined}
+                  actor={sentBy === 'bot' ? 'Bot' : sentBy === 'system' ? 'System' : sentBy || undefined}
                   avatar={sentBy === 'system' ? 'system' : sentBy === 'bot' ? 'bot' : sentBy ? getSDRAvatarUrl(sentBy) : undefined}
                   reason={sentReason}
                 />
@@ -998,7 +1129,17 @@ export default function LeadDetailPage({
             })()}
           </div>
         </Section>
+
       </div>
+    </div>
+  );
+}
+
+function ScoreChip({ label, score }: { label: string; score: number }) {
+  return (
+    <div className="text-center p-2 bg-muted/50 rounded">
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+      <div className="font-mono text-sm">{score}/5</div>
     </div>
   );
 }
@@ -1168,7 +1309,7 @@ function getClassificationColor(classification: Classification): string {
     'high-quality': '34, 197, 94',      // emerald-500
     'low-quality': '161, 161, 161',     // gray
     'support': '59, 130, 246',          // blue-500
-    'duplicate': '168, 85, 247',        // purple-500
+    'existing': '168, 85, 247',         // purple-500
   };
   return colors[classification] || '161, 161, 161';
 }

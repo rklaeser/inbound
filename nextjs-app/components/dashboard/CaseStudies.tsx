@@ -364,7 +364,7 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
           </p>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
-          AI will extract company info, description, and products from the case study page
+          Bot will extract company info, description, and products from the case study page
         </p>
       </Card>
 

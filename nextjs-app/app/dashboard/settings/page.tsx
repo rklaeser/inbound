@@ -43,9 +43,16 @@ export default function SettingsPage() {
   // Form state - Prompts
   const [classificationPrompt, setClassificationPrompt] = useState(DEFAULT_CONFIGURATION.prompts.classification);
   const [emailHighQualityPrompt, setEmailHighQualityPrompt] = useState(DEFAULT_CONFIGURATION.prompts.emailHighQuality);
+  const [classificationEvalPrompt, setClassificationEvalPrompt] = useState(DEFAULT_CONFIGURATION.prompts.classificationEval);
+  const [emailHighQualityEvalPrompt, setEmailHighQualityEvalPrompt] = useState(DEFAULT_CONFIGURATION.prompts.emailHighQualityEval);
 
   // Form state - Experimental Features
   const [experimentalCaseStudies, setExperimentalCaseStudies] = useState(DEFAULT_CONFIGURATION.experimental.caseStudies);
+
+  // Form state - Response to Lead toggles
+  const [responseToLeadLowQuality, setResponseToLeadLowQuality] = useState(false);
+  const [responseToLeadSupport, setResponseToLeadSupport] = useState(false);
+  const [responseToLeadDuplicate, setResponseToLeadDuplicate] = useState(false);
 
   // Active section for sidebar navigation
   const [activeSection, setActiveSection] = useState<'classification' | 'emails' | 'hardcoded'>('classification');
@@ -85,9 +92,9 @@ export default function SettingsPage() {
           highQuality: data.configuration.emailTemplates?.highQuality || DEFAULT_CONFIGURATION.emailTemplates.highQuality,
           lowQuality: data.configuration.emailTemplates?.lowQuality || DEFAULT_CONFIGURATION.emailTemplates.lowQuality,
           support: data.configuration.emailTemplates?.support || DEFAULT_CONFIGURATION.emailTemplates.support,
-          duplicate: data.configuration.emailTemplates?.duplicate || DEFAULT_CONFIGURATION.emailTemplates.duplicate,
+          existing: data.configuration.emailTemplates?.existing || DEFAULT_CONFIGURATION.emailTemplates.existing,
           supportInternal: data.configuration.emailTemplates?.supportInternal || DEFAULT_CONFIGURATION.emailTemplates.supportInternal,
-          duplicateInternal: data.configuration.emailTemplates?.duplicateInternal || DEFAULT_CONFIGURATION.emailTemplates.duplicateInternal,
+          existingInternal: data.configuration.emailTemplates?.existingInternal || DEFAULT_CONFIGURATION.emailTemplates.existingInternal,
         });
 
         // Populate form - Email Sending (with fallback to defaults)
@@ -98,9 +105,16 @@ export default function SettingsPage() {
         // Populate form - Prompts (with fallback to defaults)
         setClassificationPrompt(data.configuration.prompts?.classification || DEFAULT_CONFIGURATION.prompts.classification);
         setEmailHighQualityPrompt(data.configuration.prompts?.emailHighQuality || DEFAULT_CONFIGURATION.prompts.emailHighQuality);
+        setClassificationEvalPrompt(data.configuration.prompts?.classificationEval || DEFAULT_CONFIGURATION.prompts.classificationEval);
+        setEmailHighQualityEvalPrompt(data.configuration.prompts?.emailHighQualityEval || DEFAULT_CONFIGURATION.prompts.emailHighQualityEval);
 
         // Populate form - Experimental Features (with fallback to defaults)
         setExperimentalCaseStudies(data.configuration.experimental?.caseStudies ?? DEFAULT_CONFIGURATION.experimental.caseStudies);
+
+        // Populate form - Response to Lead toggles (with fallback to defaults)
+        setResponseToLeadLowQuality(data.configuration.responseToLead?.lowQuality ?? false);
+        setResponseToLeadSupport(data.configuration.responseToLead?.support ?? false);
+        setResponseToLeadDuplicate(data.configuration.responseToLead?.existing ?? false);
       } else {
         setError('Failed to load settings');
       }
@@ -150,9 +164,16 @@ export default function SettingsPage() {
           prompts: {
             classification: classificationPrompt,
             emailHighQuality: emailHighQualityPrompt,
+            classificationEval: classificationEvalPrompt,
+            emailHighQualityEval: emailHighQualityEvalPrompt,
           },
           experimental: {
             caseStudies: experimentalCaseStudies,
+          },
+          responseToLead: {
+            lowQuality: responseToLeadLowQuality,
+            support: responseToLeadSupport,
+            existing: responseToLeadDuplicate,
           },
         }),
       });
@@ -206,7 +227,7 @@ export default function SettingsPage() {
   };
 
   const updateTemplate = (
-    templateKey: 'highQuality' | 'lowQuality' | 'support' | 'duplicate' | 'supportInternal' | 'duplicateInternal',
+    templateKey: 'highQuality' | 'lowQuality' | 'support' | 'existing' | 'supportInternal' | 'existingInternal',
     field: string,
     value: string
   ) => {
@@ -221,7 +242,7 @@ export default function SettingsPage() {
 
   // Auto-save handler for individual template fields
   const saveTemplateField = async (
-    templateKey: 'highQuality' | 'lowQuality' | 'support' | 'duplicate' | 'supportInternal' | 'duplicateInternal',
+    templateKey: 'highQuality' | 'lowQuality' | 'support' | 'existing' | 'supportInternal' | 'existingInternal',
     field: string,
     value: string
   ) => {
@@ -244,12 +265,16 @@ export default function SettingsPage() {
   };
 
   // Auto-save handler for prompt fields
-  const savePromptField = async (field: 'classification' | 'emailHighQuality', value: string) => {
+  const savePromptField = async (field: 'classification' | 'emailHighQuality' | 'classificationEval' | 'emailHighQualityEval', value: string) => {
     // Update local state
     if (field === 'classification') {
       setClassificationPrompt(value);
-    } else {
+    } else if (field === 'emailHighQuality') {
       setEmailHighQualityPrompt(value);
+    } else if (field === 'classificationEval') {
+      setClassificationEvalPrompt(value);
+    } else if (field === 'emailHighQualityEval') {
+      setEmailHighQualityEvalPrompt(value);
     }
 
     // Save to API
@@ -264,10 +289,10 @@ export default function SettingsPage() {
     return (
       <div className="p-8 max-w-4xl mx-auto">
         <div className="space-y-6">
-          <div className="h-8 bg-[#0a0a0a] rounded-md w-1/3 animate-pulse"></div>
+          <div className="h-8 bg-card rounded-md w-1/3 animate-pulse"></div>
           <div className="space-y-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-64 bg-[#0a0a0a] rounded-md animate-pulse"></div>
+              <div key={i} className="h-64 bg-card rounded-md animate-pulse"></div>
             ))}
           </div>
         </div>
@@ -284,9 +309,9 @@ export default function SettingsPage() {
   return (
     <div className="font-sans">
       {/* Header */}
-      <div className="border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+      <div className="border-b border-border">
         <div className="px-8 py-6">
-          <h1 style={{ fontSize: '24px', lineHeight: '1.2', fontWeight: 600, color: '#fafafa' }}>
+          <h1 className="text-2xl leading-tight font-semibold text-foreground">
             Settings
           </h1>
         </div>
@@ -296,12 +321,12 @@ export default function SettingsPage() {
       {(error || successMessage) && (
         <div className="px-8 pt-6">
           {error && (
-            <div className="mb-4 border rounded-md p-4" style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)', fontSize: '14px', color: '#ef4444' }}>
+            <div className="mb-4 border border-destructive/20 rounded-md p-4 text-sm bg-destructive/10 text-destructive">
               {error}
             </div>
           )}
           {successMessage && (
-            <div className="mb-4 border rounded-md p-4" style={{ backgroundColor: 'rgba(34,197,94,0.1)', borderColor: 'rgba(34,197,94,0.2)', fontSize: '14px', color: '#22c55e' }}>
+            <div className="mb-4 border border-green-500/20 rounded-md p-4 text-sm bg-green-500/10 text-green-500">
               {successMessage}
             </div>
           )}
@@ -317,13 +342,11 @@ export default function SettingsPage() {
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className="w-full text-left px-3 py-2 rounded-md transition-colors"
-                style={{
-                  fontSize: '14px',
-                  color: activeSection === section.id ? '#fafafa' : '#888',
-                  backgroundColor: activeSection === section.id ? 'rgba(255,255,255,0.1)' : 'transparent',
-                  fontWeight: activeSection === section.id ? 500 : 400,
-                }}
+                className={`w-full text-left px-3 py-2 rounded-md transition-colors text-sm ${
+                  activeSection === section.id
+                    ? 'text-foreground bg-muted font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
               >
                 {section.label}
               </button>
@@ -337,17 +360,17 @@ export default function SettingsPage() {
           {activeSection === 'classification' && (
             <div className="space-y-0">
               <SettingsCard
-                title="AI Classification Rate"
+                title="Rollout"
                 description="Percentage of leads classified by AI. The rest are routed to human classification."
                 footer={
-                  <div className="flex justify-between" style={{ fontSize: '11px', color: '#737373' }}>
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
                     <span>0% (All Human)</span>
                     <span>50% (A/B Test)</span>
-                    <span>100% (Full AI)</span>
+                    <span>100% (Full Bot)</span>
                   </div>
                 }
                 action={
-                  <span className="font-mono font-semibold" style={{ fontSize: '14px', color: '#fafafa' }}>
+                  <span className="font-mono font-semibold text-sm text-foreground">
                     {percentAI}%
                   </span>
                 }
@@ -359,57 +382,14 @@ export default function SettingsPage() {
                   step="5"
                   value={percentAI}
                   onChange={(e) => setPercentAI(Number(e.target.value))}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                  style={{ background: `linear-gradient(to right, #0070f3 0%, #0070f3 ${percentAI}%, #1a1a1a ${percentAI}%, #1a1a1a 100%)`, transition: 'background 0.15s ease' }}
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer transition-[background] duration-150"
+                  style={{ background: `linear-gradient(to right, hsl(var(--info)) 0%, hsl(var(--info)) ${percentAI}%, hsl(var(--secondary)) ${percentAI}%, hsl(var(--secondary)) 100%)` }}
                 />
               </SettingsCard>
 
               <SettingsCard
-                title="Auto-Action Thresholds"
-                description="Confidence thresholds for automatic actions. Leads below these thresholds require human review."
-              >
-                <div className="space-y-6">
-                  {/* High Quality Auto-Send Toggle */}
-                  <div className="pb-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <label className="block" style={{ fontSize: '12px', fontWeight: 500, color: '#fafafa' }}>
-                          Allow High Quality Auto-Send
-                        </label>
-                        <p style={{ fontSize: '11px', color: '#a1a1a1', marginTop: '2px', maxWidth: '400px' }}>
-                          When disabled, high-quality leads always require human review before sending meeting offers
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setAllowHighQualityAutoSend(!allowHighQualityAutoSend)}
-                        className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                        style={{ backgroundColor: allowHighQualityAutoSend ? '#0070f3' : '#333' }}
-                      >
-                        <span
-                          className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                          style={{ transform: allowHighQualityAutoSend ? 'translateX(24px)' : 'translateX(4px)' }}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  <ThresholdInput
-                    label="Auto-Send (High Quality)"
-                    value={autoSendQuality}
-                    onChange={setAutoSendQuality}
-                    description={allowHighQualityAutoSend
-                      ? "Automatically send personalized email if confidence >= this threshold"
-                      : "Threshold for display only - auto-send is disabled"}
-                    disabled={!allowHighQualityAutoSend}
-                  />
-                  <ThresholdInput label="Auto-Send (Low Quality)" value={autoDeadLowValue} onChange={setAutoDeadLowValue} description="Automatically send generic email if confidence >= this threshold" />
-                  <ThresholdInput label="Auto-Forward (Support)" value={autoForwardSupport} onChange={setAutoForwardSupport} description="Automatically forward support requests if confidence >= this threshold" />
-                </div>
-              </SettingsCard>
-
-              <SettingsCard
                 title="Classification Prompt"
-                description="The prompt used by AI to classify incoming leads into categories (high-quality, low-quality, support, duplicate)."
+                description="The prompt used by Bot to classify incoming leads into categories (high-quality, low-quality, support, existing)."
               >
                 <div>
                   <MarkdownEditor
@@ -417,8 +397,24 @@ export default function SettingsPage() {
                     onSave={(value) => savePromptField('classification', value)}
                     minHeight="300px"
                   />
-                  <p className="mt-2" style={{ fontSize: '11px', color: '#737373' }}>
-                    This prompt instructs the AI on how to analyze and classify leads. Be specific about classification criteria and edge cases.
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    This prompt instructs the Bot on how to analyze and classify leads. Be specific about classification criteria and edge cases.
+                  </p>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard
+                title="Classification Evaluation Prompt"
+                description="Used by a separate model (GPT-4o) to judge whether classifications are correct. Evaluates quality based on human judgment criteria."
+              >
+                <div>
+                  <MarkdownEditor
+                    initialContent={classificationEvalPrompt}
+                    onSave={(value) => savePromptField('classificationEval', value)}
+                    minHeight="300px"
+                  />
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    This prompt evaluates Bot classifications against human judgment. Focus on criteria like: Would an SDR agree? Is there real revenue potential?
                   </p>
                 </div>
               </SettingsCard>
@@ -434,28 +430,26 @@ export default function SettingsPage() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="block" style={{ fontSize: '12px', fontWeight: 500, color: '#fafafa' }}>
+                    <label className="block text-xs font-medium text-foreground">
                       Case Studies
                     </label>
-                    <p style={{ fontSize: '11px', color: '#a1a1a1', marginTop: '2px', maxWidth: '400px' }}>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[400px]">
                       When enabled, matched case studies are appended to high-quality emails and shown on the lead detail page
                     </p>
                   </div>
                   <button
                     onClick={() => setExperimentalCaseStudies(!experimentalCaseStudies)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                    style={{ backgroundColor: experimentalCaseStudies ? '#0070f3' : '#333' }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${experimentalCaseStudies ? 'bg-info' : 'bg-secondary'}`}
                   >
                     <span
-                      className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                      style={{ transform: experimentalCaseStudies ? 'translateX(24px)' : 'translateX(4px)' }}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${experimentalCaseStudies ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                   </button>
                 </div>
               </SettingsCard>
 
               <EmailTemplateCard
-                title="High Quality Email"
+                title="High Quality"
                 description="Sent from SDR to qualified leads with meeting offer"
                 template={emailTemplates.highQuality}
                 onUpdate={(field, value) => updateTemplate('highQuality', field, value)}
@@ -463,28 +457,40 @@ export default function SettingsPage() {
                 isFirst={true}
                 bodyPrompt={emailHighQualityPrompt}
                 onBodyPromptSave={(value) => savePromptField('emailHighQuality', value)}
+                evalPrompt={emailHighQualityEvalPrompt}
+                onEvalPromptSave={(value) => savePromptField('emailHighQualityEval', value)}
               />
 
               <EmailTemplateCard
-                title="Low Quality Email"
-                description="Generic email sent to leads that don't meet qualification criteria (auto-sent)"
+                title="Low Quality"
+                description="Generic email sent to leads that don't meet qualification criteria"
                 template={emailTemplates.lowQuality as LowQualityTemplateData}
                 onUpdate={(field, value) => updateTemplate('lowQuality', field, value)}
                 onSaveField={(field, value) => saveTemplateField('lowQuality', field, value)}
                 templateType="lowQuality"
+                thresholdValue={autoDeadLowValue}
+                onThresholdChange={setAutoDeadLowValue}
+                thresholdDescription="Automatically send this email when classification confidence >= threshold"
+                responseToLead={responseToLeadLowQuality}
+                onResponseToLeadChange={setResponseToLeadLowQuality}
               />
 
               <EmailTemplateCard
-                title="Support Email"
+                title="Support"
                 description="Acknowledgment sent to the lead"
                 template={emailTemplates.support}
                 onUpdate={(field, value) => updateTemplate('support', field, value)}
                 onSaveField={(field, value) => saveTemplateField('support', field, value)}
                 templateType="simple"
+                thresholdValue={autoForwardSupport}
+                onThresholdChange={setAutoForwardSupport}
+                thresholdDescription="Automatically forward to support team when classification confidence >= threshold"
+                responseToLead={responseToLeadSupport}
+                onResponseToLeadChange={setResponseToLeadSupport}
               />
 
               <EmailTemplateCard
-                title="Support Internal Notification"
+                title="Support Internal"
                 description="Sent to support team when a support request is received"
                 template={emailTemplates.supportInternal}
                 onUpdate={(field, value) => updateTemplate('supportInternal', field, value)}
@@ -495,20 +501,22 @@ export default function SettingsPage() {
               />
 
               <EmailTemplateCard
-                title="Duplicate Email"
+                title="Existing"
                 description="Acknowledgment sent to the lead"
-                template={emailTemplates.duplicate}
-                onUpdate={(field, value) => updateTemplate('duplicate', field, value)}
-                onSaveField={(field, value) => saveTemplateField('duplicate', field, value)}
+                template={emailTemplates.existing}
+                onUpdate={(field, value) => updateTemplate('existing', field, value)}
+                onSaveField={(field, value) => saveTemplateField('existing', field, value)}
+                responseToLead={responseToLeadDuplicate}
+                onResponseToLeadChange={setResponseToLeadDuplicate}
                 templateType="simple"
               />
 
               <EmailTemplateCard
-                title="Duplicate Internal Notification"
+                title="Existing Internal"
                 description="Sent to account rep when an existing customer reaches out"
-                template={emailTemplates.duplicateInternal}
-                onUpdate={(field, value) => updateTemplate('duplicateInternal', field, value)}
-                onSaveField={(field, value) => saveTemplateField('duplicateInternal', field, value)}
+                template={emailTemplates.existingInternal}
+                onUpdate={(field, value) => updateTemplate('existingInternal', field, value)}
+                onSaveField={(field, value) => saveTemplateField('existingInternal', field, value)}
                 templateType="internal"
                 isLast={true}
               />
@@ -528,7 +536,7 @@ export default function SettingsPage() {
                   <TextInput label="SDR Email" value={sdrEmail} onChange={setSdrEmail} type="email" />
                   <div>
                     <TextInput label="SDR Title" value={sdrTitle} onChange={setSdrTitle} />
-                    <p style={{ fontSize: '11px', color: '#737373', marginTop: '4px' }}>
+                    <p className="text-[11px] text-muted-foreground mt-1">
                       Signature preview: Best, {sdrName || 'Ryan'} / {sdrName || 'Ryan'} {sdrLastName || 'Hemelt'} / ▲ Vercel {sdrTitle || 'Development Representative'}
                     </p>
                   </div>
@@ -542,72 +550,66 @@ export default function SettingsPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="block" style={{ fontSize: '12px', fontWeight: 500, color: '#fafafa' }}>
+                      <label className="block text-xs font-medium text-foreground">
                         Enable Email Sending
                       </label>
-                      <p style={{ fontSize: '11px', color: '#a1a1a1', marginTop: '2px' }}>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
                         When enabled, emails will actually be sent via Resend
                       </p>
                     </div>
                     <button
                       onClick={() => setEmailEnabled(!emailEnabled)}
-                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                      style={{ backgroundColor: emailEnabled ? '#0070f3' : '#333' }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailEnabled ? 'bg-info' : 'bg-secondary'}`}
                     >
                       <span
-                        className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                        style={{ transform: emailEnabled ? 'translateX(24px)' : 'translateX(4px)' }}
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${emailEnabled ? 'translate-x-6' : 'translate-x-1'}`}
                       />
                     </button>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="block" style={{ fontSize: '12px', fontWeight: 500, color: '#fafafa' }}>
+                      <label className="block text-xs font-medium text-foreground">
                         Test Mode
                       </label>
-                      <p style={{ fontSize: '11px', color: '#a1a1a1', marginTop: '2px' }}>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
                         When enabled, all emails are sent to the test address below
                       </p>
                     </div>
                     <button
                       onClick={() => setEmailTestMode(!emailTestMode)}
-                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                      style={{ backgroundColor: emailTestMode ? '#0070f3' : '#333' }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailTestMode ? 'bg-info' : 'bg-secondary'}`}
                     >
                       <span
-                        className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                        style={{ transform: emailTestMode ? 'translateX(24px)' : 'translateX(4px)' }}
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${emailTestMode ? 'translate-x-6' : 'translate-x-1'}`}
                       />
                     </button>
                   </div>
 
                   {emailTestMode && (
                     <div>
-                      <label className="block mb-2" style={{ fontSize: '12px', fontWeight: 500, color: '#a1a1a1' }}>
+                      <label className="block mb-2 text-xs font-medium text-muted-foreground">
                         Test Email Address
                       </label>
                       <input
                         type="email"
                         value={emailTestAddress}
                         onChange={(e) => setEmailTestAddress(e.target.value)}
-                        className="w-full border rounded-md p-2"
-                        style={{ fontSize: '14px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa', height: '40px' }}
+                        className="w-full border border-border/60 rounded-md p-2 text-sm bg-card text-foreground h-10 focus:border-info focus:outline-none transition-colors"
                         placeholder="test@example.com"
                       />
-                      <p style={{ fontSize: '11px', color: '#737373', marginTop: '4px' }}>
+                      <p className="text-[11px] text-muted-foreground mt-1">
                         All emails will be sent to this address with [TEST] prefix in subject
                       </p>
                     </div>
                   )}
 
-                  <div className="border rounded-md p-3" style={{ borderColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000' }}>
+                  <div className="border border-border/60 rounded-md p-3 bg-background">
                     <div className="flex items-center gap-2">
                       <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: emailEnabled ? (emailTestMode ? '#f59e0b' : '#22c55e') : '#ef4444' }}
+                        className={`w-2 h-2 rounded-full ${emailEnabled ? (emailTestMode ? 'bg-amber-500' : 'bg-green-500') : 'bg-destructive'}`}
                       />
-                      <span style={{ fontSize: '12px', color: '#a1a1a1' }}>
+                      <span className="text-xs text-muted-foreground">
                         {!emailEnabled
                           ? 'Emails disabled - no emails will be sent'
                           : emailTestMode
@@ -627,12 +629,8 @@ export default function SettingsPage() {
                 <Button
                   onClick={handleResetToDefaults}
                   disabled={saving}
-                  variant="outline"
-                  style={{
-                    color: '#ef4444',
-                    borderColor: 'rgba(239,68,68,0.2)',
-                    transition: 'all 0.15s ease'
-                  }}
+                  variant="destructive"
+                  className="transition-all duration-150"
                 >
                   {saving ? 'Resetting...' : 'Reset to Defaults'}
                 </Button>
@@ -644,16 +642,16 @@ export default function SettingsPage() {
           <div className="mt-8 flex justify-between items-center">
             <div>
               {config && (
-                <span style={{ fontSize: '12px', color: '#737373' }}>
+                <span className="text-xs text-muted-foreground">
                   Last updated: {new Date(config.updated_at as any).toLocaleString()} by {config.updated_by}
                 </span>
               )}
             </div>
             <div className="flex gap-3">
-              <Button onClick={loadSettings} disabled={saving} variant="outline" style={{ transition: 'all 0.15s ease' }}>
+              <Button onClick={loadSettings} disabled={saving} variant="outline" className="transition-all duration-150">
                 Discard Changes
               </Button>
-              <Button onClick={handleSave} disabled={saving} style={{ backgroundColor: '#0070f3', color: '#fff', fontWeight: 500, transition: 'all 0.15s ease' }}>
+              <Button onClick={handleSave} disabled={saving} variant="info" className="font-medium transition-all duration-150">
                 {saving ? 'Saving...' : 'Save Settings'}
               </Button>
             </div>
@@ -678,24 +676,21 @@ function SettingsCard({
   action?: React.ReactNode;
 }) {
   return (
-    <div
-      className="border-x border-t first:rounded-t-lg last:rounded-b-lg last:border-b"
-      style={{ borderColor: 'rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' }}
-    >
+    <div className="border-x border-t border-border first:rounded-t-lg last:rounded-b-lg last:border-b bg-card">
       <div className="p-6">
         <div className="flex items-start justify-between mb-1">
-          <h3 style={{ fontSize: '14px', fontWeight: 500, color: '#fafafa' }}>
+          <h3 className="text-sm font-medium text-foreground">
             {title}
           </h3>
           {action}
         </div>
-        <p style={{ fontSize: '13px', color: '#888', lineHeight: '1.5', marginBottom: children ? '16px' : '0' }}>
+        <p className={`text-[13px] text-muted-foreground leading-normal ${children ? 'mb-4' : ''}`}>
           {description}
         </p>
         {children}
       </div>
       {footer && (
-        <div className="px-6 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', backgroundColor: '#000' }}>
+        <div className="px-6 py-3 border-t border-border/60 bg-background">
           {footer}
         </div>
       )}
@@ -718,6 +713,13 @@ function EmailTemplateCard({
   bodyPrompt,
   onBodyPromptChange,
   onBodyPromptSave,
+  evalPrompt,
+  onEvalPromptSave,
+  thresholdValue,
+  onThresholdChange,
+  thresholdDescription,
+  responseToLead,
+  onResponseToLeadChange,
 }: {
   title: string;
   description: string;
@@ -732,39 +734,70 @@ function EmailTemplateCard({
   bodyPrompt?: string;
   onBodyPromptChange?: (value: string) => void;
   onBodyPromptSave?: (value: string) => Promise<void>;
+  evalPrompt?: string;
+  onEvalPromptSave?: (value: string) => Promise<void>;
+  thresholdValue?: number;
+  onThresholdChange?: (value: number) => void;
+  thresholdDescription?: string;
+  responseToLead?: boolean;
+  onResponseToLeadChange?: (value: boolean) => void;
 }) {
+  // Determine if template content should be disabled (grayed out)
+  const isDisabled = responseToLead !== undefined && !responseToLead;
+
   return (
     <div
-      className="border-x border-t"
-      style={{
-        borderColor: 'rgba(255,255,255,0.1)',
-        backgroundColor: '#0a0a0a',
-        borderTopLeftRadius: isFirst ? '8px' : '0',
-        borderTopRightRadius: isFirst ? '8px' : '0',
-        borderBottomLeftRadius: isLast ? '8px' : '0',
-        borderBottomRightRadius: isLast ? '8px' : '0',
-        borderBottomWidth: isLast ? '1px' : '0',
-      }}
+      className={`border-x border-t border-border bg-card ${isFirst ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg border-b' : ''}`}
     >
       <div className="p-6">
         <div className="mb-4">
-          <h3 style={{ fontSize: '14px', fontWeight: 500, color: '#fafafa' }}>{title}</h3>
-          <p style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>{description}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-foreground">{title}</h3>
+              <p className="text-[13px] text-muted-foreground mt-1">{description}</p>
+            </div>
+            {/* Response to Lead toggle - only show if handler is provided */}
+            {onResponseToLeadChange && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">Response to Lead</span>
+                <button
+                  onClick={() => onResponseToLeadChange(!responseToLead)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${responseToLead ? 'bg-info' : 'bg-secondary'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${responseToLead ? 'translate-x-6' : 'translate-x-1'}`}
+                  />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="space-y-4">
+        <div className={`space-y-4 transition-opacity ${isDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
+          {/* Auto-send threshold for templates that support it */}
+          {thresholdValue !== undefined && onThresholdChange && (
+            <div className="pb-4 border-b border-border/60">
+              <ThresholdInput
+                label="Auto-Send Threshold"
+                value={thresholdValue}
+                onChange={onThresholdChange}
+                description={thresholdDescription || "Automatically send this email when confidence >= threshold"}
+                disabled={isDisabled}
+              />
+            </div>
+          )}
+
           {/* Recipient email for internal notifications */}
           {templateType === 'internal' && recipientEmail !== undefined && onRecipientEmailChange && (
             <div>
-              <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Recipient Email</label>
+              <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Recipient Email</label>
               <input
                 type="email"
                 value={recipientEmail}
                 onChange={(e) => onRecipientEmailChange(e.target.value)}
-                className="w-full border rounded-md p-2"
-                style={{ fontSize: '13px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa' }}
+                className="w-full border border-border/60 rounded-md p-2 text-[13px] bg-card text-foreground focus:border-info focus:outline-none transition-colors"
                 placeholder="support@example.com"
               />
-              <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+              <p className="mt-1 text-[10px] text-muted-foreground/70">
                 Email address where this notification will be sent
               </p>
             </div>
@@ -772,13 +805,12 @@ function EmailTemplateCard({
 
           {/* Subject - all types have this */}
           <div>
-            <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Subject</label>
+            <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Subject</label>
             <input
               type="text"
               value={template.subject}
               onChange={(e) => onUpdate('subject', e.target.value)}
-              className="w-full border rounded-md p-2"
-              style={{ fontSize: '13px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa' }}
+              className="w-full border border-border/60 rounded-md p-2 text-[13px] bg-card text-foreground focus:border-info focus:outline-none transition-colors"
             />
           </div>
 
@@ -786,40 +818,53 @@ function EmailTemplateCard({
           {templateType === 'highQuality' && (
             <>
               <div>
-                <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Greeting</label>
+                <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Greeting</label>
                 <RichTextEditor
                   initialContent={template.greeting}
                   onSave={(value) => onSaveField('greeting', value)}
                 />
-                <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+                <p className="mt-1 text-[10px] text-muted-foreground/70">
                   Use {'{firstName}'} to personalize
                 </p>
               </div>
               {bodyPrompt !== undefined && onBodyPromptSave && (
                 <div>
-                  <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Body Prompt</label>
+                  <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Body Prompt</label>
                   <MarkdownEditor
                     initialContent={bodyPrompt}
                     onSave={onBodyPromptSave}
                     minHeight="200px"
                   />
-                  <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
-                    This prompt instructs the AI on how to generate the email body for high-quality leads. The greeting, call-to-action, and sign-off are added automatically.
+                  <p className="mt-1 text-[10px] text-muted-foreground/70">
+                    This prompt instructs the Bot on how to generate the email body for high-quality leads. The greeting, call-to-action, and sign-off are added automatically.
+                  </p>
+                </div>
+              )}
+              {evalPrompt !== undefined && onEvalPromptSave && (
+                <div>
+                  <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Evaluation Prompt</label>
+                  <MarkdownEditor
+                    initialContent={evalPrompt}
+                    onSave={onEvalPromptSave}
+                    minHeight="200px"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground/70">
+                    Used by a separate model (GPT-4o) to judge email quality. Evaluates personalization, tone, relevance, and call-to-action.
                   </p>
                 </div>
               )}
               <div>
-                <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Call to Action</label>
+                <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Call to Action</label>
                 <RichTextEditor
                   initialContent={template.callToAction}
                   onSave={(value) => onSaveField('callToAction', value)}
                 />
-                <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+                <p className="mt-1 text-[10px] text-muted-foreground/70">
                   Use {'{leadId}'} in links for the meeting booking URL
                 </p>
               </div>
               <div>
-                <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Sign Off</label>
+                <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Sign Off</label>
                 <RichTextEditor
                   initialContent={template.signOff}
                   onSave={(value) => onSaveField('signOff', value)}
@@ -832,36 +877,34 @@ function EmailTemplateCard({
           {templateType === 'lowQuality' && (
             <>
               <div>
-                <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Body</label>
+                <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Body</label>
                 <RichTextEditor
                   initialContent={template.body}
                   onSave={(value) => onSaveField('body', value)}
                 />
-                <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+                <p className="mt-1 text-[10px] text-muted-foreground/70">
                   Complete email body including sign-off
                 </p>
               </div>
-              <div className="border-t pt-4" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                <p className="mb-3" style={{ fontSize: '11px', color: '#737373' }}>Sender Information</p>
+              <div className="border-t border-border/60 pt-4">
+                <p className="mb-3 text-[11px] text-muted-foreground">Sender Information</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Sender Name</label>
+                    <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Sender Name</label>
                     <input
                       type="text"
                       value={template.senderName || ''}
                       onChange={(e) => onUpdate('senderName', e.target.value)}
-                      className="w-full border rounded-md p-2"
-                      style={{ fontSize: '13px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa' }}
+                      className="w-full border border-border/60 rounded-md p-2 text-[13px] bg-card text-foreground focus:border-info focus:outline-none transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Sender Email</label>
+                    <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Sender Email</label>
                     <input
                       type="email"
                       value={template.senderEmail || ''}
                       onChange={(e) => onUpdate('senderEmail', e.target.value)}
-                      className="w-full border rounded-md p-2"
-                      style={{ fontSize: '13px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa' }}
+                      className="w-full border border-border/60 rounded-md p-2 text-[13px] bg-card text-foreground focus:border-info focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -873,25 +916,24 @@ function EmailTemplateCard({
           {templateType === 'simple' && (
             <>
               <div>
-                <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Greeting</label>
+                <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Greeting</label>
                 <input
                   type="text"
                   value={template.greeting}
                   onChange={(e) => onUpdate('greeting', e.target.value)}
-                  className="w-full border rounded-md p-2"
-                  style={{ fontSize: '13px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa' }}
+                  className="w-full border border-border/60 rounded-md p-2 text-[13px] bg-card text-foreground focus:border-info focus:outline-none transition-colors"
                 />
-                <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+                <p className="mt-1 text-[10px] text-muted-foreground/70">
                   Use {'{firstName}'} to personalize
                 </p>
               </div>
               <div>
-                <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Body</label>
+                <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Body</label>
                 <RichTextEditor
                   initialContent={template.body}
                   onSave={(value) => onSaveField('body', value)}
                 />
-                <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+                <p className="mt-1 text-[10px] text-muted-foreground/70">
                   Include sign-off in the body. Use {'{firstName}'} to personalize.
                 </p>
               </div>
@@ -901,12 +943,12 @@ function EmailTemplateCard({
           {/* Internal notification template fields */}
           {templateType === 'internal' && (
             <div>
-              <label className="block mb-1" style={{ fontSize: '11px', fontWeight: 500, color: '#a1a1a1' }}>Body</label>
+              <label className="block mb-1 text-[11px] font-medium text-muted-foreground">Body</label>
               <RichTextEditor
                 initialContent={template.body}
                 onSave={(value) => onSaveField('body', value)}
               />
-              <p className="mt-1" style={{ fontSize: '10px', color: '#525252' }}>
+              <p className="mt-1 text-[10px] text-muted-foreground/70">
                 Variables: {'{firstName}'}, {'{company}'}, {'{email}'}, {'{message}'}
               </p>
             </div>
@@ -921,12 +963,12 @@ function ThresholdInput({ label, value, onChange, description, disabled = false 
   const percentage = Math.round(value * 100);
 
   return (
-    <div style={{ opacity: disabled ? 0.5 : 1, transition: 'opacity 0.15s ease' }}>
+    <div className={`transition-opacity duration-150 ${disabled ? 'opacity-50' : ''}`}>
       <div className="flex items-center justify-between mb-2">
-        <label className="block" style={{ fontSize: '12px', fontWeight: 500, color: '#fafafa' }}>{label}</label>
-        <span className="font-mono font-semibold" style={{ fontSize: '14px', color: '#fafafa' }}>{percentage}%</span>
+        <label className="block text-xs font-medium text-foreground">{label}</label>
+        <span className="font-mono font-semibold text-sm text-foreground">{percentage}%</span>
       </div>
-      <p className="mb-2" style={{ fontSize: '11px', color: '#a1a1a1', lineHeight: '1.6' }}>{description}</p>
+      <p className="mb-2 text-[11px] text-muted-foreground leading-relaxed">{description}</p>
       <input
         type="range"
         min="0"
@@ -935,14 +977,13 @@ function ThresholdInput({ label, value, onChange, description, disabled = false 
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         disabled={disabled}
-        className="w-full h-2 rounded-lg appearance-none"
+        className="w-full h-2 rounded-lg appearance-none transition-[background] duration-150"
         style={{
-          background: `linear-gradient(to right, #0070f3 0%, #0070f3 ${percentage}%, #1a1a1a ${percentage}%, #1a1a1a 100%)`,
-          transition: 'background 0.15s ease',
+          background: `linear-gradient(to right, hsl(var(--info)) 0%, hsl(var(--info)) ${percentage}%, hsl(var(--secondary)) ${percentage}%, hsl(var(--secondary)) 100%)`,
           cursor: disabled ? 'not-allowed' : 'pointer'
         }}
       />
-      <div className="flex justify-between mt-1" style={{ fontSize: '11px', color: '#737373' }}>
+      <div className="flex justify-between mt-1 text-[11px] text-muted-foreground">
         <span>0% (Never)</span>
         <span>50%</span>
         <span>100% (Always)</span>
@@ -954,15 +995,12 @@ function ThresholdInput({ label, value, onChange, description, disabled = false 
 function TextInput({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
   return (
     <div>
-      <label className="block mb-2" style={{ fontSize: '12px', fontWeight: 500, color: '#a1a1a1' }}>{label}</label>
+      <label className="block mb-2 text-xs font-medium text-muted-foreground">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border rounded-md p-2"
-        style={{ fontSize: '14px', backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.06)', color: '#fafafa', height: '40px', transition: 'border-color 0.15s ease' }}
-        onFocus={(e) => e.target.style.borderColor = '#0070f3'}
-        onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.06)'}
+        className="w-full border border-border/60 rounded-md p-2 text-sm bg-card text-foreground h-10 transition-colors focus:border-info focus:outline-none"
       />
     </div>
   );

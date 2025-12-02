@@ -20,7 +20,7 @@ function getVariantForClassification(classification: Classification): BadgeVaria
     case 'high-quality': return 'success';
     case 'low-quality': return 'muted';
     case 'support': return 'info';
-    case 'duplicate': return 'purple';
+    case 'existing': return 'purple';
     default: return 'muted';
   }
 }

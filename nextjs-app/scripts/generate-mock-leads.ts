@@ -135,14 +135,14 @@ const MESSAGE_TEMPLATES = {
     "Can't access my team's dashboard after a recent password reset. Getting locked out repeatedly.",
     "Our domain isn't resolving correctly. DNS seems misconfigured but I followed the docs.",
   ],
-  'duplicate': [
+  'existing': [
     "Following up on my previous inquiry about enterprise features. Haven't heard back yet.",
     "We spoke last month about migrating to Vercel. Ready to proceed now. Please reconnect me with the sales team.",
     "I'm from {company} - we're an existing customer. Want to discuss upgrading our plan to include more seats.",
     "Reaching out again about the enterprise contract we discussed. Need to add 50 more developer seats.",
   ],
   // Reroute messages - these reflect the ORIGINAL classification that was disputed
-  // customer-reroute: Lead was wrongly marked as support/duplicate, but they're NOT an existing customer
+  // customer-reroute: Lead was wrongly marked as support/existing, but they're NOT an existing customer
   'customer-reroute': [
     "Hi, I'm interested in evaluating Vercel for our company. We're building a new product and need a modern deployment platform. Can someone from sales reach out?",
     "We're a new company looking at Vercel for our infrastructure. I filled out the contact form but got forwarded to support - I think there was a mix-up. We want to discuss enterprise options.",
@@ -302,7 +302,7 @@ const FIT_ASSESSMENT_OPTIONS = {
     "Clear support ticket - customer experiencing issues that need resolution.",
     "Account in good standing with billing/technical questions. Route to support.",
   ],
-  'duplicate': [
+  'existing': [
     "CRM match confirmed. Existing enterprise customer - route to account team.",
     "Previous relationship identified. Account manager should handle this inquiry.",
     "Returning customer inquiry. Connect with existing account representative.",
@@ -441,7 +441,7 @@ function generateBotResearch(
       'Billing or account access issue. Support team can resolve directly.',
       'DNS/domain configuration problem. Technical support required.',
     ],
-    'duplicate': [
+    'existing': [
       'CRM match found: existing customer record with active account.',
       'Email domain matches existing enterprise customer. Account team should handle.',
       'Previous conversation history found. Returning customer inquiry.',
@@ -481,8 +481,8 @@ function generateBotResearch(
     confidence,
     classification,
     reasoning: randomChoice(reasoningMap[classification] || reasoningMap['low-quality']),
-    existingCustomer: classification === 'duplicate' || classification === 'support',
-    crmRecordId: (classification === 'duplicate' || classification === 'support')
+    existingCustomer: classification === 'existing' || classification === 'support',
+    crmRecordId: (classification === 'existing' || classification === 'support')
       ? `CRM-${randomInt(10000, 99999)}`
       : undefined,
     researchReport,
@@ -775,7 +775,7 @@ function generateAllLeads(): GeneratedLead[] {
     originalClassification: 'support',
   });
 
-  // Human overrode bot (was duplicate, changed to high-quality) - 1 lead
+  // Human overrode bot (was existing, changed to high-quality) - 1 lead
   // Bot thought existing customer, but different person at same company
   addLeads(1, {
     classification: 'high-quality',
@@ -784,7 +784,7 @@ function generateAllLeads(): GeneratedLead[] {
     useRealCompany: true,
     sentBy: 'human',
     wasOverridden: true,
-    originalClassification: 'duplicate',
+    originalClassification: 'existing',
   });
 
   // ==========================================================================
@@ -868,21 +868,21 @@ function generateAllLeads(): GeneratedLead[] {
   });
 
   // ==========================================================================
-  // DUPLICATE LEADS (~14)
+  // EXISTING CUSTOMER LEADS (~14)
   // ==========================================================================
 
-  // Auto-forwarded duplicate - 9 leads
+  // Auto-forwarded existing - 9 leads
   addLeads(9, {
-    classification: 'duplicate',
+    classification: 'existing',
     status: 'done',
     confidenceRange: 'high',
     useRealCompany: true,
     sentBy: 'bot',
   });
 
-  // Human reviewed duplicate - 5 leads
+  // Human reviewed existing - 5 leads
   addLeads(5, {
-    classification: 'duplicate',
+    classification: 'existing',
     status: 'done',
     confidenceRange: 'medium',
     useRealCompany: true,
@@ -894,7 +894,7 @@ function generateAllLeads(): GeneratedLead[] {
   // These have classification history showing original → reroute
   // ==========================================================================
 
-  // Customer reroutes: Bot wrongly classified as support/duplicate, customer disputed
+  // Customer reroutes: Bot wrongly classified as support/existing, customer disputed
   addLeads(2, {
     classification: 'customer-reroute',
     status: 'done',
@@ -913,7 +913,7 @@ function generateAllLeads(): GeneratedLead[] {
     sentBy: 'human',
     isReroute: true,
     wasOverridden: true,
-    originalClassification: 'duplicate', // Bot thought they were already in CRM
+    originalClassification: 'existing', // Bot thought they were already in CRM
   });
 
   // Support team reroutes: Support received it but it's actually a sales opportunity

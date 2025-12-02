@@ -9,6 +9,91 @@ import { z } from 'zod';
 import { LeadFormData, ClassificationResult, EmailGenerationResult } from './types';
 
 /**
+ * Exa Search Infrastructure
+ * Shared client and helpers for all Exa-based search tools
+ */
+
+// Lazy-initialized Exa client (singleton)
+let exaClient: InstanceType<typeof import('exa-js').default> | null = null;
+
+async function getExaClient() {
+  if (!process.env.EXA_API_KEY) {
+    return null;
+  }
+  if (!exaClient) {
+    const Exa = (await import('exa-js')).default;
+    exaClient = new Exa(process.env.EXA_API_KEY);
+  }
+  return exaClient;
+}
+
+type ExaCategory =
+  | 'linkedin profile'
+  | 'company'
+  | 'news'
+  | 'financial report'
+  | 'github'
+  | 'research paper'
+  | 'pdf'
+  | 'tweet'
+  | 'personal site';
+
+interface ExaSearchOptions {
+  numResults: number;
+  maxCharacters: number;
+  includeDomains?: string[];
+  category?: ExaCategory;
+}
+
+interface ExaSearchResult {
+  title?: string | null;
+  summary?: string | null;
+  text?: string | null;
+  url?: string | null;
+}
+
+function formatExaResults(results: ExaSearchResult[], fallbackMessage: string): string {
+  if (!results.length) return fallbackMessage;
+
+  return results
+    .map((r) => {
+      const content = r.summary || r.text || '';
+      const source = r.url ? `\nSource: ${r.url}` : '';
+      return `${r.title}: ${content}${source}`;
+    })
+    .join('\n\n');
+}
+
+async function executeExaSearch(
+  query: string,
+  options: ExaSearchOptions,
+  context: { toolName: string; fallbackMessage: string; mockResponse?: string }
+): Promise<string> {
+  const client = await getExaClient();
+
+  if (!client) {
+    console.warn(`⚠️ EXA_API_KEY not set - ${context.toolName} unavailable`);
+    return context.mockResponse || context.fallbackMessage;
+  }
+
+  try {
+    const result = await client.searchAndContents(query, {
+      numResults: options.numResults,
+      type: 'keyword',
+      ...(options.includeDomains && { includeDomains: options.includeDomains }),
+      ...(options.category && { category: options.category }),
+      summary: true,
+      text: { maxCharacters: options.maxCharacters },
+    });
+
+    return formatExaResults(result.results, context.fallbackMessage);
+  } catch (error) {
+    console.error(`${context.toolName} error:`, error);
+    return `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
+}
+
+/**
  * Tools for Research Agent
  */
 
@@ -32,40 +117,35 @@ const webSearch = tool({
       .describe('Type of content to prioritize in search results')
       .optional()
   }),
-  execute: async ({ keywords, resultCategory }) => {
-    // Check if EXA_API_KEY is available
-    if (!process.env.EXA_API_KEY) {
-      console.warn('⚠️ EXA_API_KEY not set - returning mock search results');
-      return `Mock search results for "${keywords}": Company appears to be a ${resultCategory || 'business'} with online presence.`;
-    }
+  execute: async ({ keywords, resultCategory }) =>
+    executeExaSearch(
+      keywords,
+      { numResults: 2, maxCharacters: 500, category: resultCategory },
+      {
+        toolName: 'webSearch',
+        fallbackMessage: 'No results found',
+        mockResponse: `Mock search results for "${keywords}": Company appears to be a ${resultCategory || 'business'} with online presence.`,
+      }
+    ),
+});
 
-    try {
-      const Exa = (await import('exa-js')).default;
-      const exa = new Exa(process.env.EXA_API_KEY);
-
-      const result = await exa.searchAndContents(keywords, {
-        numResults: 2,
-        type: 'keyword',
-        ...(resultCategory && { category: resultCategory }),
-        summary: true,
-        text: { maxCharacters: 500 }
-      });
-
-      // Format results as text with source URLs
-      const formatted = result.results
-        .map((r: any) => {
-          const content = r.summary || r.text || '';
-          const source = r.url ? `\nSource: ${r.url}` : '';
-          return `${r.title}: ${content}${source}`;
-        })
-        .join('\n\n');
-
-      return formatted || 'No results found';
-    } catch (error) {
-      console.error('Exa search error:', error);
-      return `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    }
-  }
+/**
+ * Vercel docs search tool - searches vercel.com for product information
+ */
+const searchVercelDocs = tool({
+  description: 'Search Vercel documentation for product features, pricing, plans, and technical details. Use when the lead asks technical questions about Vercel capabilities.',
+  inputSchema: z.object({
+    query: z.string().describe('What to search for in Vercel docs'),
+  }),
+  execute: async ({ query }) =>
+    executeExaSearch(
+      query,
+      { numResults: 3, maxCharacters: 1000, includeDomains: ['vercel.com'] },
+      {
+        toolName: 'searchVercelDocs',
+        fallbackMessage: 'No results found in Vercel docs',
+      }
+    ),
 });
 
 /**
@@ -79,10 +159,12 @@ Your goal is to gather comprehensive information about the lead to help qualify 
 
 Available tools:
 - **webSearch**: Search for company information, recent news, and LinkedIn profiles (use resultCategory: 'linkedin profile' to find people)
+- **searchVercelDocs**: Search Vercel documentation for product features, pricing, and technical details
 
 Research strategy:
 1. Search for the person's LinkedIn profile to verify their job title and seniority
 2. Search for company information (size, industry, funding, recent news)
+3. If the lead's message asks technical questions about Vercel features, pricing, or capabilities, use searchVercelDocs to look up accurate information
 
 IMPORTANT - Person Research:
 - Always search for the person's LinkedIn profile using their name and company
@@ -103,6 +185,9 @@ Industry: [industry or "Unknown"]
 Size: [employee count/size or "Unknown"]
 Website: [website or "Not found"]
 
+**Product Context:** (only include if lead asked technical questions)
+[Relevant Vercel product information from docs search]
+
 **Red Flags:**
 [List any concerns or "None"]
 
@@ -112,6 +197,7 @@ Website: [website or "Not found"]
 Keep each field concise - single line responses only. No paragraphs.`,
   tools: {
     webSearch,
+    searchVercelDocs,
   },
   stopWhen: [stepCountIs(15)] // Max 15 tool calls
 });
@@ -120,7 +206,7 @@ Keep each field concise - single line responses only. No paragraphs.`,
  * Qualification Functions
  */
 const classificationSchema = z.object({
-  // Note: 'duplicate' is handled deterministically by CRM check, not by AI classification
+  // Note: 'existing' is handled deterministically by CRM check, not by AI classification
   classification: z.enum(['high-quality', 'low-quality', 'support']),
   confidence: z.number().min(0).max(1),
   reasoning: z.string(),
@@ -130,8 +216,8 @@ export async function qualifyLead(
   lead: LeadFormData,
   research: string
 ): Promise<ClassificationResult> {
-  // Note: Duplicate detection is handled deterministically before this function is called.
-  // This function only runs for non-duplicate leads.
+  // Note: Existing customer detection is handled deterministically before this function is called.
+  // This function only runs for non-existing customer leads.
   const { getConfiguration } = await import('./configuration-helpers');
   const { DEFAULT_CONFIGURATION } = await import('./types');
   const configuration = await getConfiguration();
@@ -158,7 +244,7 @@ Classify this lead and provide your confidence score and reasoning.`
     classification: object.classification,
     confidence: object.confidence,
     reasoning: object.reasoning,
-    existingCustomer: false, // Only non-duplicates reach this function
+    existingCustomer: false, // Only non-existing-customer leads reach this function
   };
 }
 
@@ -182,7 +268,8 @@ function textToHtml(text: string): string {
 }
 
 export async function generateEmailForLead(
-  lead: LeadFormData
+  lead: LeadFormData,
+  researchReport: string
 ): Promise<EmailGenerationResult> {
   // Get configuration email template settings
   const { getConfiguration } = await import('./configuration-helpers');
@@ -203,7 +290,10 @@ LEAD INFORMATION:
 - Company: ${lead.company}
 - Message: ${lead.message}
 
-Generate ONLY the middle body content. DO NOT include greeting, sign-off, or call-to-action - these will be added automatically.`
+RESEARCH REPORT:
+${researchReport}
+
+Generate ONLY the middle body content (1-2 sentences). DO NOT include greeting, sign-off, or call-to-action - these will be added automatically.`
   });
 
   // Convert AI-generated plain text to HTML paragraphs

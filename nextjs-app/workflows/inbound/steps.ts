@@ -173,7 +173,8 @@ export const stepGenerateEmail = async (
   console.log(`[Workflow] Generating personalized email for high-quality lead`);
 
   // High-quality email: personalized from SDR with meeting offer
-  const result = await generateEmailForLead(lead);
+  // Pass research report so email can use product context and company info
+  const result = await generateEmailForLead(lead, research.report);
 
   console.log(`[Workflow] Email generation completed, included case studies: ${result.includedCaseStudies.join(', ')}`);
 
@@ -290,40 +291,77 @@ interface EmailTemplateConfig {
 }
 
 /**
+ * Lead form data needed for eval context
+ */
+interface LeadSubmissionData {
+  name: string;
+  email: string;
+  company: string;
+  message: string;
+}
+
+/**
  * Persist results step - writes directly to Firestore using firebase-admin
+ * Also runs LLM evaluations on bot outputs before persisting
  */
 export const stepPersistResults = async (
   leadId: string,
   result: PersistResultPayload,
   useAIClassification: boolean,
-  leadName: string,
+  leadSubmission: LeadSubmissionData,
   emailTemplateConfig: EmailTemplateConfig
 ): Promise<void> => {
   'use step';
 
   console.log(`[Workflow] Persisting results for lead ${leadId}`);
 
-  // Import firebase-admin and email helpers
+  // Import firebase-admin, email helpers, and eval service
   const { adminDb } = await import('@/lib/db');
   const { assembleEmail, extractFirstName } = await import('@/lib/email');
+  const { evaluateLead } = await import('@/lib/eval-service');
 
   // Assemble full email from body if workflow generated one
   let email = null;
+  let assembledEmailText: string | undefined;
   if (result.emailBody) {
     const now = new Date();
-    const firstName = extractFirstName(leadName);
+    const firstName = extractFirstName(leadSubmission.name);
     const fullEmailHtml = assembleEmail(
       result.emailBody,
       emailTemplateConfig,
       firstName,
       leadId
     );
+    assembledEmailText = fullEmailHtml;
     email = {
       text: fullEmailHtml,
       createdAt: now,
       editedAt: now,
     };
     console.log(`[Workflow] Assembled full email for ${firstName}`);
+  }
+
+  // Run evaluations on bot outputs (non-blocking for workflow)
+  console.log(`[Workflow] Running evaluations on bot outputs...`);
+  let eval_results = null;
+  try {
+    eval_results = await evaluateLead({
+      submission: {
+        leadName: leadSubmission.name,
+        email: leadSubmission.email,
+        company: leadSubmission.company,
+        message: leadSubmission.message,
+      },
+      bot_research: result.bot_research,
+      emailText: assembledEmailText,
+    });
+    console.log(`[Workflow] Evaluations completed - classification: ${eval_results.classification.pass ? 'pass' : 'fail'} (${eval_results.classification.score}/5)`);
+    if (eval_results.email) {
+      console.log(`[Workflow] Email eval: ${eval_results.email.pass ? 'pass' : 'fail'} (${eval_results.email.overall}/5)`);
+    }
+  } catch (evalError) {
+    console.error(`[Workflow] Evaluation failed (non-fatal):`, evalError);
+    // Continue with persistence even if evals fail
   }
 
   // Build bot rollout info
@@ -343,7 +381,7 @@ export const stepPersistResults = async (
         applied_threshold: result.applied_threshold,
       };
 
-      // Update lead with full workflow results
+      // Update lead with full workflow results including eval_results
       await adminDb.collection("leads").doc(leadId).update({
         bot_research: result.bot_research,
         email,
@@ -353,6 +391,7 @@ export const stepPersistResults = async (
         'status.sent_by': result.sent_by,
         classifications: [botClassification],
         matched_case_studies: result.matched_case_studies,
+        ...(eval_results && { eval_results }),
       });
 
       console.log(`[Workflow] AI classification applied: ${result.bot_research.classification}`);
@@ -364,6 +403,7 @@ export const stepPersistResults = async (
         bot_rollout,
         'status.status': 'classify',
         matched_case_studies: result.matched_case_studies,
+        ...(eval_results && { eval_results }),
       });
 
       console.log(`[Workflow] AI classification stored for comparison: ${result.bot_research.classification} (${(result.bot_research.confidence * 100).toFixed(0)}% confidence)`);

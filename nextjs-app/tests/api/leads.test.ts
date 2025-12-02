@@ -49,7 +49,7 @@ vi.mock('@/lib/email/classification-emails', () => ({
   sendHighQualityEmail: vi.fn().mockResolvedValue({ success: true, sentContent: { subject: 'Test', html: '<p>Test</p>' } }),
   sendLowQualityEmail: vi.fn().mockResolvedValue({ success: true, sentContent: { subject: 'Test', html: '<p>Test</p>' } }),
   sendSupportEmail: vi.fn().mockResolvedValue({ success: true, sentContent: { subject: 'Test', html: '<p>Test</p>' } }),
-  sendDuplicateEmail: vi.fn().mockResolvedValue({ success: true, sentContent: { subject: 'Test', html: '<p>Test</p>' } }),
+  sendExistingEmail: vi.fn().mockResolvedValue({ success: true, sentContent: { subject: 'Test', html: '<p>Test</p>' } }),
 }));
 
 vi.mock('firebase-admin/firestore', () => ({

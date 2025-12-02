@@ -152,7 +152,13 @@ export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowRes
   };
 
   // Step 5: Persist results to database using firebase-admin
-  await stepPersistResults(leadId, result, useAIClassification, data.name, emailTemplateConfig);
+  // Pass full lead submission for eval context
+  await stepPersistResults(leadId, result, useAIClassification, {
+    name: data.name,
+    email: data.email,
+    company: data.company,
+    message: data.message,
+  }, emailTemplateConfig);
 
   console.log(`[Workflow] Workflow completed: status=${status}, needs_review=${needs_review}`);
 

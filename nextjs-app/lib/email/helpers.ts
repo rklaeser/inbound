@@ -144,13 +144,16 @@ export function assembleEmail(
   // Render case studies section (for high-quality emails)
   const caseStudiesHtml = caseStudies ? renderCaseStudiesHtml(caseStudies) : '';
 
+  // Build book meeting link for signature
+  const bookMeetingUrl = leadId ? `${getBaseUrl()}/book-meeting/${leadId}` : '#';
+
   // Assemble all HTML parts
-  // Signature format: Best, + first name (no gap), then blank line, then full name + title
+  // Signature format: Best, + first name (no gap), then blank line, then full name | Book a Meeting + title
   return `${greeting}
 ${bodyContent}
 ${callToAction}
 <p>Best,<br>${template.senderName}</p>
-<p>${template.senderName} ${template.senderLastName}<br>▲ Vercel ${template.senderTitle}</p>${caseStudiesHtml}`;
+<p>${template.senderName} ${template.senderLastName} | <a href="${bookMeetingUrl}">Book a Meeting</a><br>▲ Vercel ${template.senderTitle}</p>${caseStudiesHtml}`;
 }
 
 /**

@@ -123,7 +123,9 @@ export default function DashboardLayout({
         <div className="flex items-center justify-between h-12 px-6">
           {/* Logo and Breadcrumb */}
           <div className="flex items-center gap-2">
-            <VercelLogo height={10} />
+            <a href="/" className="hover:opacity-70 transition-opacity">
+              <VercelLogo height={10} />
+            </a>
             {breadcrumbSegments.map((segment, index) => (
               <div key={index} className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">/</span>

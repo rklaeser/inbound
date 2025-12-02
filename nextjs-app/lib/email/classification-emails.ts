@@ -91,11 +91,13 @@ export async function sendLowQualityEmail(
  * Uses configured HTML templates with placeholders:
  * - {firstName}, {baseUrl}, {leadId}, {company} for customer email
  * - {firstName}, {company}, {email}, {message} for internal notification
+ *
+ * When skipCustomerEmail is true, only the internal notification is sent.
  */
 export async function sendSupportEmail(
-  params: EmailParams
+  params: EmailParams & { skipCustomerEmail?: boolean }
 ): Promise<ClassificationEmailResult> {
-  const { lead, config, testModeEmail } = params;
+  const { lead, config, testModeEmail, skipCustomerEmail } = params;
 
   if (!config.email.enabled) {
     return { success: true, sentContent: null };
@@ -114,27 +116,30 @@ export async function sendSupportEmail(
     .replace(/{company}/g, lead.submission.company)}`;
   const emailSubject = template.subject.replace('{firstName}', firstName);
 
-  const result = await sendEmail(
-    {
-      to: lead.submission.email,
-      fromName: senderName,
-      fromEmail: senderEmail,
-      subject: emailSubject,
-      html: emailBody,
-    },
-    testModeEmail
-  );
+  // Only send customer email if not skipped
+  if (!skipCustomerEmail) {
+    const result = await sendEmail(
+      {
+        to: lead.submission.email,
+        fromName: senderName,
+        fromEmail: senderEmail,
+        subject: emailSubject,
+        html: emailBody,
+      },
+      testModeEmail
+    );
 
-  if (!result.success) {
-    console.error(`Failed to send support email for lead ${lead.id}:`, result.error);
-    return {
-      success: false,
-      sentContent: null,
-      error: result.error,
-    };
+    if (!result.success) {
+      console.error(`Failed to send support email for lead ${lead.id}:`, result.error);
+      return {
+        success: false,
+        sentContent: null,
+        error: result.error,
+      };
+    }
   }
 
-  // Send internal notification to support team
+  // Always send internal notification to support team
   const internalTemplate = config.emailTemplates.supportInternal;
   const internalBody = internalTemplate.body
     .replace('{firstName}', firstName)
@@ -157,26 +162,29 @@ export async function sendSupportEmail(
 
   return {
     success: true,
-    sentContent: { subject: emailSubject, html: emailBody },
+    sentContent: skipCustomerEmail ? null : { subject: emailSubject, html: emailBody },
   };
 }
 
 /**
- * Send duplicate acknowledgment email to lead
+ * Send existing customer acknowledgment email to lead and internal notification to account team
  *
- * Uses configured HTML template with placeholders:
- * - {firstName}, {baseUrl}, {leadId}, {company}
+ * Uses configured HTML templates with placeholders:
+ * - {firstName}, {baseUrl}, {leadId}, {company} for customer email
+ * - {firstName}, {company}, {email}, {message} for internal notification
+ *
+ * When skipCustomerEmail is true, only the internal notification is sent.
  */
-export async function sendDuplicateEmail(
-  params: EmailParams
+export async function sendExistingEmail(
+  params: EmailParams & { skipCustomerEmail?: boolean }
 ): Promise<ClassificationEmailResult> {
-  const { lead, config, testModeEmail } = params;
+  const { lead, config, testModeEmail, skipCustomerEmail } = params;
 
   if (!config.email.enabled) {
     return { success: true, sentContent: null };
   }
 
-  const template = config.emailTemplates.duplicate;
+  const template = config.emailTemplates.existing;
   const firstName = extractFirstName(lead.submission.leadName);
   const senderName = config.sdr.name;
   const senderEmail = config.sdr.email;
@@ -189,29 +197,56 @@ export async function sendDuplicateEmail(
     .replace(/{company}/g, lead.submission.company)}`;
   const emailSubject = template.subject.replace('{firstName}', firstName);
 
-  const result = await sendEmail(
+  // Only send customer email if not skipped
+  if (!skipCustomerEmail) {
+    const result = await sendEmail(
+      {
+        to: lead.submission.email,
+        fromName: senderName,
+        fromEmail: senderEmail,
+        subject: emailSubject,
+        html: emailBody,
+      },
+      testModeEmail
+    );
+
+    if (!result.success) {
+      console.error(`Failed to send existing customer email for lead ${lead.id}:`, result.error);
+      return {
+        success: false,
+        sentContent: null,
+        error: result.error,
+      };
+    }
+  }
+
+  // Always send internal notification to account team
+  const internalTemplate = config.emailTemplates.existingInternal;
+  const internalBody = internalTemplate.body
+    .replace(/{firstName}/g, firstName)
+    .replace(/{company}/g, lead.submission.company)
+    .replace(/{email}/g, lead.submission.email)
+    .replace(/{message}/g, lead.submission.message)
+    .replace(/{baseUrl}/g, getBaseUrl())
+    .replace(/{leadId}/g, lead.id);
+
+  // For existing customer leads, send to SDR email (account team) - could be configurable in future
+  await sendEmail(
     {
-      to: lead.submission.email,
-      fromName: senderName,
-      fromEmail: senderEmail,
-      subject: emailSubject,
-      html: emailBody,
+      to: config.sdr.email,
+      fromName: config.sdr.name,
+      fromEmail: config.sdr.email,
+      subject: internalTemplate.subject
+        .replace('{firstName}', firstName)
+        .replace('{company}', lead.submission.company),
+      html: internalBody,
     },
     testModeEmail
   );
 
-  if (result.success) {
-    return {
-      success: true,
-      sentContent: { subject: emailSubject, html: emailBody },
-    };
-  }
-
-  console.error(`Failed to send duplicate email for lead ${lead.id}:`, result.error);
   return {
-    success: false,
-    sentContent: null,
-    error: result.error,
+    success: true,
+    sentContent: skipCustomerEmail ? null : { subject: emailSubject, html: emailBody },
   };
 }
 

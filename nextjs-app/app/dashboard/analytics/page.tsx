@@ -267,10 +267,10 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Human vs AI Comparison */}
+      {/* Human vs Bot Comparison */}
       {analytics.humanAIComparison && analytics.humanAIComparison.totalComparisons > 0 && (
         <div>
-          <h2 className="text-lg font-medium text-foreground mb-4">Human vs AI Classification Comparison</h2>
+          <h2 className="text-lg font-medium text-foreground mb-4">Human vs Bot Classification Comparison</h2>
 
           {/* Overview Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -304,7 +304,7 @@ export default function AnalyticsPage() {
             {/* Agreement by Confidence */}
             <Card>
               <CardHeader className="pb-4">
-                <CardTitle className="text-base font-medium">Agreement by AI Confidence</CardTitle>
+                <CardTitle className="text-base font-medium">Agreement by Bot Confidence</CardTitle>
                 <CardDescription>Does higher confidence correlate with human agreement?</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -353,14 +353,14 @@ export default function AnalyticsPage() {
             <Card className="mt-6">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base font-medium">Classification Confusion Matrix</CardTitle>
-                <CardDescription>When AI and human disagree, what do they each choose?</CardDescription>
+                <CardDescription>When Bot and human disagree, what do they each choose?</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-2 px-3 text-muted-foreground font-medium">AI Classification</th>
+                        <th className="text-left py-2 px-3 text-muted-foreground font-medium">Bot Classification</th>
                         <th className="text-left py-2 px-3 text-muted-foreground font-medium">Human Classification</th>
                         <th className="text-right py-2 px-3 text-muted-foreground font-medium">Count</th>
                       </tr>
@@ -627,7 +627,7 @@ function getClassificationStyle(classification: string): string {
     'high-quality': 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
     'low-quality': 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border border-gray-500/20',
     'support': 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
-    'duplicate': 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20',
+    'existing': 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20',
   };
   return styles[classification] || 'bg-muted text-muted-foreground border border-border';
 }
