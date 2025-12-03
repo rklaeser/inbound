@@ -71,10 +71,11 @@ interface Lead {
     applied_threshold?: number;
   }>;
   edit_note?: string;
+  meeting_booked_at?: string;
 }
 
 function convertDatesToTimestamps(lead: Lead): Record<string, unknown> {
-  return {
+  const result: Record<string, unknown> = {
     ...lead,
     bot_research: lead.bot_research
       ? {
@@ -101,6 +102,13 @@ function convertDatesToTimestamps(lead: Lead): Record<string, unknown> {
       timestamp: Timestamp.fromDate(new Date(c.timestamp)),
     })),
   };
+
+  // Only add meeting_booked_at if it exists (Firestore doesn't accept undefined)
+  if (lead.meeting_booked_at) {
+    result.meeting_booked_at = Timestamp.fromDate(new Date(lead.meeting_booked_at));
+  }
+
+  return result;
 }
 
 async function clearExistingLeads(): Promise<number> {

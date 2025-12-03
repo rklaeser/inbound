@@ -66,7 +66,6 @@ interface AnalyticsData {
 
   autoSendRate: number;
   humanOverrideRate: number;
-  botAccuracy: number;
 
   avgConfidence: number;
   confidenceByClassification: {
@@ -182,22 +181,6 @@ export async function GET() {
     // Human override rate: leads where human reclassified
     const reclassifiedLeads = leads.filter((l) => wasReclassified(l));
     const humanOverrideRate = totalLeads > 0 ? (reclassifiedLeads.length / totalLeads) * 100 : 0;
-
-    // Bot accuracy: on sampled (reviewed) leads, how often did bot get it right
-    // Compare bot classification to final human classification
-    const sampledLeads = reclassifiedLeads.filter(
-      (l) => l.classifications && l.classifications.length >= 2
-    );
-    let botAccuracyMatches = 0;
-    sampledLeads.forEach((lead) => {
-      // classifications[0] is the human (most recent), classifications[1] is the bot
-      const humanClassification = lead.classifications[0].classification;
-      const botClassification = lead.classifications[1].classification;
-      if (humanClassification === botClassification) {
-        botAccuracyMatches++;
-      }
-    });
-    const botAccuracy = sampledLeads.length > 0 ? (botAccuracyMatches / sampledLeads.length) * 100 : 100;
 
     // Confidence stats
     const leadsWithConfidence = leads.filter((l) => l.bot_research?.confidence !== undefined);
@@ -411,7 +394,6 @@ export async function GET() {
       classificationBreakdown,
       autoSendRate: Math.round(autoSendRate * 100) / 100,
       humanOverrideRate: Math.round(humanOverrideRate * 100) / 100,
-      botAccuracy: Math.round(botAccuracy * 100) / 100,
       avgConfidence,
       confidenceByClassification,
       avgProcessingTimeMs,

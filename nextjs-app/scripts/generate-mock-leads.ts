@@ -993,6 +993,25 @@ function generateAllLeads(): GeneratedLead[] {
     }
   });
 
+  // ==========================================================================
+  // MEETING BOOKINGS (add to some high-quality done leads)
+  // ==========================================================================
+
+  // ~30% of high-quality done leads result in meetings booked
+  leads.forEach((lead) => {
+    if (
+      lead.status.status === 'done' &&
+      lead.status.sent_at &&
+      lead.classifications[0]?.classification === 'high-quality' &&
+      Math.random() < 0.3
+    ) {
+      // Meeting booked 1-72 hours after email sent
+      const sentAt = lead.status.sent_at as Date;
+      const hoursToMeeting = randomFloat(1, 72);
+      (lead as any).meeting_booked_at = addHours(sentAt, hoursToMeeting);
+    }
+  });
+
   return leads;
 }
 
@@ -1006,31 +1025,35 @@ function main() {
   const leads = generateAllLeads();
 
   // Convert dates to ISO strings for JSON
-  const serializedLeads = leads.map((lead) => ({
-    ...lead,
-    bot_research: lead.bot_research
-      ? {
-          ...lead.bot_research,
-          timestamp: (lead.bot_research.timestamp as Date).toISOString(),
-        }
-      : null,
-    email: lead.email
-      ? {
-          ...lead.email,
-          createdAt: (lead.email.createdAt as Date).toISOString(),
-          editedAt: (lead.email.editedAt as Date).toISOString(),
-        }
-      : null,
-    status: {
-      ...lead.status,
-      received_at: (lead.status.received_at as Date).toISOString(),
-      sent_at: lead.status.sent_at ? (lead.status.sent_at as Date).toISOString() : null,
-    },
-    classifications: lead.classifications.map((c) => ({
-      ...c,
-      timestamp: (c.timestamp as Date).toISOString(),
-    })),
-  }));
+  const serializedLeads = leads.map((lead) => {
+    const meetingBookedAt = (lead as any).meeting_booked_at as Date | undefined;
+    return {
+      ...lead,
+      bot_research: lead.bot_research
+        ? {
+            ...lead.bot_research,
+            timestamp: (lead.bot_research.timestamp as Date).toISOString(),
+          }
+        : null,
+      email: lead.email
+        ? {
+            ...lead.email,
+            createdAt: (lead.email.createdAt as Date).toISOString(),
+            editedAt: (lead.email.editedAt as Date).toISOString(),
+          }
+        : null,
+      status: {
+        ...lead.status,
+        received_at: (lead.status.received_at as Date).toISOString(),
+        sent_at: lead.status.sent_at ? (lead.status.sent_at as Date).toISOString() : null,
+      },
+      classifications: lead.classifications.map((c) => ({
+        ...c,
+        timestamp: (c.timestamp as Date).toISOString(),
+      })),
+      meeting_booked_at: meetingBookedAt ? meetingBookedAt.toISOString() : undefined,
+    };
+  });
 
   const outputPath = path.join(__dirname, '../lib/db/generated-leads.json');
   fs.writeFileSync(outputPath, JSON.stringify(serializedLeads, null, 2));

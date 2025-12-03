@@ -51,7 +51,6 @@ interface AnalyticsData {
   };
   autoSendRate: number;
   humanOverrideRate: number;
-  botAccuracy: number;
   avgConfidence: number;
   confidenceByClassification: {
     classification: string;
@@ -218,7 +217,7 @@ export default function AnalyticsPage() {
       {/* Bot Performance */}
       <div>
         <h2 className="text-lg font-medium text-foreground mb-4">Bot Performance</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StatCard
             label="Auto-send Rate"
             value={`${analytics.autoSendRate.toFixed(1)}%`}
@@ -230,12 +229,6 @@ export default function AnalyticsPage() {
             value={`${analytics.humanOverrideRate.toFixed(1)}%`}
             subtext="Reclassified by humans"
             variant={analytics.humanOverrideRate > 20 ? 'warning' : 'default'}
-          />
-          <StatCard
-            label="Bot Accuracy"
-            value={`${analytics.botAccuracy.toFixed(1)}%`}
-            subtext="On reviewed leads"
-            variant={analytics.botAccuracy > 80 ? 'success' : analytics.botAccuracy > 60 ? 'warning' : 'error'}
           />
         </div>
       </div>
@@ -273,7 +266,7 @@ export default function AnalyticsPage() {
           <h2 className="text-lg font-medium text-foreground mb-4">Human vs Bot Classification Comparison</h2>
 
           {/* Overview Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <StatCard
               label="Total Comparisons"
               value={analytics.humanAIComparison.totalComparisons}
@@ -290,12 +283,6 @@ export default function AnalyticsPage() {
               value={`${analytics.humanAIComparison.byComparisonType.blind.agreementRate}%`}
               subtext={`${analytics.humanAIComparison.byComparisonType.blind.total} samples`}
               variant={analytics.humanAIComparison.byComparisonType.blind.agreementRate >= 80 ? 'success' : 'default'}
-            />
-            <StatCard
-              label="Override Agreement"
-              value={`${analytics.humanAIComparison.byComparisonType.override.agreementRate}%`}
-              subtext={`${analytics.humanAIComparison.byComparisonType.override.total} samples`}
-              variant={analytics.humanAIComparison.byComparisonType.override.agreementRate >= 80 ? 'success' : 'default'}
             />
           </div>
 
