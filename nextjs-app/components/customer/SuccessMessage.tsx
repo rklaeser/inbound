@@ -205,20 +205,12 @@ function CaseStudyCard({
           <img
             src={`data:image/svg+xml;base64,${btoa(caseStudy.logoSvg)}`}
             alt={`${caseStudy.company} logo`}
-            className="h-8 max-w-[140px] object-contain"
-            style={{ filter: 'brightness(0) invert(1)' }}
+            className="h-8 max-w-[140px] object-contain brightness-0 dark:invert"
           />
         ) : (
           <span className="text-muted-foreground text-lg font-semibold">{caseStudy.company}</span>
         )}
       </div>
-
-      {/* Dev Mode: Match Reason */}
-      {devModeEnabled && caseStudy.matchReason && (
-        <div className="mb-3 p-2 rounded text-xs font-mono bg-blue-500/10 border-l-2 border-blue-500 text-muted-foreground">
-          {caseStudy.matchReason}
-        </div>
-      )}
 
       {/* Featured Text */}
       {caseStudy.featuredText && (
@@ -242,6 +234,13 @@ function CaseStudyCard({
           <path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </a>
+
+      {/* Dev Mode: Match Reason */}
+      {devModeEnabled && caseStudy.matchReason && (
+        <div className="mt-3 p-2 rounded text-xs font-mono bg-muted/50 text-muted-foreground">
+          {caseStudy.matchReason}
+        </div>
+      )}
     </div>
   );
 }

@@ -253,6 +253,7 @@ Classify this lead and provide your confidence score and reasoning.`
  */
 const emailSchema = z.object({
   body: z.string().describe('The email body content'),
+  responseStyle: z.enum(['demo', 'trial', 'qualifying']).describe('The response style: demo (showing features), trial (hands-on experience), or qualifying (asking clarifying questions)'),
 });
 
 /**
@@ -299,7 +300,8 @@ ${researchReport}`
   return {
     subject: template.subject,
     body: textToHtml(object.body),
-    includedCaseStudies: []
+    includedCaseStudies: [],
+    responseStyle: object.responseStyle,
   };
 }
 

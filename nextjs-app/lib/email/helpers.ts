@@ -7,7 +7,7 @@
  * - Human edits are stored as HTML from the rich text editor
  */
 
-import { MatchedCaseStudy } from '../types';
+import { MatchedCaseStudy, ResponseStyle } from '../types';
 import type { CaseStudy } from '../case-studies/types';
 
 /**
@@ -117,6 +117,7 @@ ${caseStudyCards}
  * @param firstName - Lead's first name to fill in greeting
  * @param leadId - Optional lead ID for placeholders in CTA (e.g., meeting links)
  * @param caseStudies - Optional case studies to display at end of email (high-quality only)
+ * @param responseStyle - Optional response style to determine whether to include CTA
  * @returns The fully assembled email as HTML
  */
 export function assembleEmail(
@@ -124,7 +125,8 @@ export function assembleEmail(
   template: EmailTemplateParts,
   firstName: string,
   leadId?: string,
-  caseStudies?: MatchedCaseStudy[]
+  caseStudies?: MatchedCaseStudy[],
+  responseStyle?: ResponseStyle
 ): string {
   // Fill in greeting with first name and SDR name
   const greeting = template.greeting
@@ -132,10 +134,14 @@ export function assembleEmail(
     .replace('{sdrName}', template.senderName);
 
   // Fill in CTA with lead ID and base URL if needed (CTA is HTML)
-  let callToAction = template.callToAction
-    .replace(/{baseUrl}/g, getBaseUrl());
-  if (leadId) {
-    callToAction = callToAction.replace(/{leadId}/g, leadId);
+  // Skip CTA for qualifying responses - those are asking questions, not offering meetings
+  let callToAction = '';
+  if (responseStyle !== 'qualifying') {
+    callToAction = template.callToAction
+      .replace(/{baseUrl}/g, getBaseUrl());
+    if (leadId) {
+      callToAction = callToAction.replace(/{leadId}/g, leadId);
+    }
   }
 
   // Fill in sign-off (HTML)

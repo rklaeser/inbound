@@ -16,9 +16,10 @@ interface CaseStudyWithEmbedding {
  * - 0.8-1.0: Very high similarity
  * - 0.6-0.8: Good similarity
  * - 0.5-0.6: Moderate similarity
- * - Below 0.5: Too weak to show
+ * - 0.4-0.5: Acceptable for short queries vs long documents
+ * - Below 0.4: Too weak to show
  */
-export const SIMILARITY_THRESHOLD = 0.5;
+export const SIMILARITY_THRESHOLD = 0.4;
 
 /**
  * Case study with matching metadata (vector-based)
@@ -79,6 +80,12 @@ export async function findRelevantCaseStudiesVectorWithReason(
     }
 
     console.log(`[Vector Matcher] Loaded ${caseStudiesWithEmbeddings.length} case studies with embeddings from Firebase`);
+
+    // Debug: Log embedding dimensions and query text
+    console.log(`[Vector Matcher] Query text: "${queryText.substring(0, 100)}..."`);
+    console.log(`[Vector Matcher] Query embedding dimension: ${queryEmbedding.length}`);
+    console.log(`[Vector Matcher] Query embedding sample: [${queryEmbedding.slice(0, 5).map(v => v.toFixed(4)).join(', ')}...]`);
+    console.log(`[Vector Matcher] First case study (${caseStudiesWithEmbeddings[0]?.caseStudy?.company}) embedding sample: [${caseStudiesWithEmbeddings[0]?.embedding?.slice(0, 5).map((v: number) => v.toFixed(4)).join(', ')}...]`);
 
     // Find most similar case studies
     const results = findTopSimilar(

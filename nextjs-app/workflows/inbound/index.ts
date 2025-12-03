@@ -1,4 +1,4 @@
-import { LeadFormData, Classification, BotResearch, LeadStatus, MatchedCaseStudy, Configuration } from '@/lib/types';
+import { LeadFormData, Classification, BotResearch, LeadStatus, MatchedCaseStudy, Configuration, ResponseStyle } from '@/lib/types';
 import { type CaseStudy } from '@/lib/case-studies';
 import {
   stepResearch,
@@ -52,6 +52,10 @@ export interface WorkflowResult {
   // Email body text (just the personalized middle part, null for non-high-quality leads)
   // The submit route will assemble this into a full email with greeting/CTA/signature
   emailBody: string | null;
+
+  // Response style used for the email (demo, trial, or qualifying)
+  // Used to determine whether to include CTA (qualifying emails skip it)
+  responseStyle?: ResponseStyle;
 
   // Whether lead needs review or can auto-send
   needs_review: boolean;
@@ -120,13 +124,15 @@ export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowRes
   // Step 3: Generate email for high-quality leads only
   // Other classifications use static templates or don't need emails
   let emailBody: string | null = null;
+  let responseStyle: ResponseStyle | undefined;
 
   if (classification.classification === 'high-quality') {
     const emailResult = await stepGenerateEmail(data, research, classification);
 
-    // Return just the body - submit route will assemble full email
+    // Return body and response style - submit route will assemble full email
     emailBody = emailResult.body;
-    console.log(`[Workflow] Generated email body for ${data.name}`);
+    responseStyle = emailResult.responseStyle;
+    console.log(`[Workflow] Generated email body for ${data.name} (style: ${responseStyle})`);
   } else {
     console.log(
       `[Workflow] Skipping email generation for ${classification.classification} lead (uses static template or no email)`
@@ -143,6 +149,7 @@ export const workflowInbound = async (input: WorkflowInput): Promise<WorkflowRes
   const result: WorkflowResult = {
     bot_research,
     emailBody,
+    responseStyle,
     needs_review,
     applied_threshold,
     status,

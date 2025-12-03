@@ -434,7 +434,7 @@ export default function CaseStudies({ initialCaseStudies, initialDefaultCaseStud
                       <img
                         src={`data:image/svg+xml;base64,${btoa(caseStudy.logoSvg)}`}
                         alt={`${caseStudy.company} logo`}
-                        className="w-8 h-8 object-contain"
+                        className="w-8 h-8 object-contain invert dark:invert-0"
                       />
                     ) : (
                       <svg

@@ -73,6 +73,7 @@ export async function POST(
 
           // Assemble the full email (greeting + body + CTA + signoff + signature)
           // Note: Case studies are NOT included - they're appended at send time
+          // Note: CTA is conditionally included based on responseStyle (skipped for 'qualifying')
           const config = await getConfiguration();
           const firstName = extractFirstName(lead.submission.leadName);
           const fullEmail = assembleEmail(
@@ -87,8 +88,9 @@ export async function POST(
               senderTitle: config.sdr.title,
             },
             firstName,
-            leadId
-            // Case studies omitted - appended at send time
+            leadId,
+            undefined, // caseStudies - appended at send time
+            emailResult.responseStyle
           );
 
           // Store the fully assembled email

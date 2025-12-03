@@ -12,13 +12,18 @@ const COLLECTION_NAME = 'case_studies';
 
 /**
  * Create searchable text from case study for embedding
+ * Uses full_article_text if available for richer semantic matching
  */
 function createCaseStudyText(caseStudy: Omit<CaseStudy, 'id'>): string {
-  const parts: string[] = [];
+  // Prefer full article text for better embedding quality
+  if (caseStudy.full_article_text) {
+    return caseStudy.full_article_text;
+  }
 
+  // Fallback to basic info if no full article text
+  const parts: string[] = [];
   parts.push(`Company: ${caseStudy.company}`);
   parts.push(`Industry: ${caseStudy.industry}`);
-  parts.push(`Technologies: ${caseStudy.products.join(', ')}`);
   parts.push(`Featured: ${caseStudy.featuredText}`);
 
   return parts.join('. ');
@@ -107,7 +112,7 @@ export async function updateCaseStudy(
     updates.company !== undefined ||
     updates.featuredText !== undefined ||
     updates.industry !== undefined ||
-    updates.products !== undefined;
+    updates.full_article_text !== undefined;
 
   let updateData: Record<string, unknown> = {
     ...updates,

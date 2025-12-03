@@ -510,8 +510,11 @@ export interface ClassificationResult {
   existingCustomer: boolean;  // True if CRM lookup found existing customer relationship
 }
 
+export type ResponseStyle = 'demo' | 'trial' | 'qualifying';
+
 export interface EmailGenerationResult {
   subject: string;
   body: string;
   includedCaseStudies: string[]; // Company names mentioned in the email
+  responseStyle?: ResponseStyle; // The response style used (demo, trial, or qualifying)
 }

@@ -3,7 +3,7 @@ import {
   qualifyLead,
   generateEmailForLead,
 } from '@/lib/workflow-services';
-import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration, MatchedCaseStudy, BotResearch } from '@/lib/types';
+import { LeadFormData, Classification, ClassificationResult, LeadStatus, Configuration, MatchedCaseStudy, BotResearch, ResponseStyle } from '@/lib/types';
 import { getThresholdForClassification, shouldAutoSend } from '@/lib/configuration-helpers';
 import { findRelevantCaseStudiesVectorWithReason, type Industry } from '@/lib/case-studies';
 import { caseStudyToMatchedCaseStudy } from '@/lib/email';
@@ -104,11 +104,14 @@ export const stepClassify = async (
 };
 
 /**
- * Email generation result type
+ * Email generation result type for workflow steps
+ * Note: This is a subset of the full EmailGenerationResult from types.ts
  */
 export interface EmailGenerationResult {
+  subject: string;
   body: string;
   includedCaseStudies: string[]; // Company names mentioned in the email
+  responseStyle?: ResponseStyle; // The response style (demo, trial, qualifying)
 }
 
 /**
@@ -176,11 +179,13 @@ export const stepGenerateEmail = async (
   // Pass research report so email can use product context and company info
   const result = await generateEmailForLead(lead, research.report);
 
-  console.log(`[Workflow] Email generation completed, included case studies: ${result.includedCaseStudies.join(', ')}`);
+  console.log(`[Workflow] Email generation completed, response style: ${result.responseStyle}, included case studies: ${result.includedCaseStudies.join(', ')}`);
 
   return {
+    subject: result.subject,
     body: result.body,
     includedCaseStudies: result.includedCaseStudies,
+    responseStyle: result.responseStyle,
   };
 };
 
@@ -269,6 +274,7 @@ export const stepDetermineStatus = async (
 interface PersistResultPayload {
   bot_research: BotResearch;
   emailBody: string | null;
+  responseStyle?: ResponseStyle;
   needs_review: boolean;
   applied_threshold: number;
   status: LeadStatus;
@@ -330,7 +336,9 @@ export const stepPersistResults = async (
       result.emailBody,
       emailTemplateConfig,
       firstName,
-      leadId
+      leadId,
+      undefined, // caseStudies
+      result.responseStyle
     );
     assembledEmailText = fullEmailHtml;
     email = {
@@ -338,7 +346,7 @@ export const stepPersistResults = async (
       createdAt: now,
       editedAt: now,
     };
-    console.log(`[Workflow] Assembled full email for ${firstName}`);
+    console.log(`[Workflow] Assembled full email for ${firstName} (style: ${result.responseStyle})`);
   }
 
   // Run evaluations on bot outputs (non-blocking for workflow)

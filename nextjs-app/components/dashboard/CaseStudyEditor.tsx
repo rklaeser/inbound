@@ -109,8 +109,7 @@ export function CaseStudyEditor({
                     <img
                       src={`data:image/svg+xml;base64,${btoa(cs.logoSvg)}`}
                       alt={`${cs.company} logo`}
-                      className="h-8 max-w-[140px] object-contain"
-                      style={{ filter: 'brightness(0) invert(1)' }}
+                      className="h-8 max-w-[140px] object-contain brightness-0 dark:invert"
                     />
                   ) : (
                     <span className="text-[#888] text-lg font-semibold">{cs.company}</span>
@@ -204,8 +203,7 @@ export function CaseStudyEditor({
                         <img
                           src={`data:image/svg+xml;base64,${btoa(cs.logoSvg)}`}
                           alt={`${cs.company} logo`}
-                          className="h-6 max-w-[120px] object-contain"
-                          style={{ filter: 'brightness(0) invert(1)' }}
+                          className="h-6 max-w-[120px] object-contain brightness-0 dark:invert"
                         />
                       ) : (
                         <span className="text-[#888] font-semibold">{cs.company}</span>

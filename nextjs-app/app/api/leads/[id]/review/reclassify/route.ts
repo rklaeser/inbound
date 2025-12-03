@@ -78,6 +78,7 @@ export async function POST(
         );
 
         // Assemble the full email (greeting + body + CTA + signoff + signature)
+        // Note: CTA is conditionally included based on responseStyle (skipped for 'qualifying')
         const config = await getConfiguration();
         const firstName = extractFirstName(lead.submission.leadName);
         const fullEmail = assembleEmail(
@@ -92,7 +93,9 @@ export async function POST(
             senderTitle: config.sdr.title,
           },
           firstName,
-          lead.id
+          lead.id,
+          undefined, // caseStudies
+          emailGenerated.responseStyle
         );
 
         updateData["email.text"] = fullEmail;

@@ -26,8 +26,9 @@ export interface CaseStudy {
   industry: Industry;
   products: VercelProduct[];
   url: string;
-  logoSvg: string;       // Raw SVG markup stored in Firestore (required)
-  featuredText: string;  // Featured text from Vercel's customer page (required)
+  logoSvg: string;           // Raw SVG markup stored in Firestore (required)
+  featuredText: string;      // Featured text from Vercel's customer page (required)
+  full_article_text?: string; // Full article content for embedding generation
 }
 
 export const INDUSTRIES: Industry[] = [

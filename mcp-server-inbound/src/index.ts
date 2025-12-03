@@ -367,6 +367,8 @@ function formatCaseStudy(caseStudy: any, includeEmbedding: boolean = false): any
   if (!includeEmbedding) {
     return {
       ...baseFields,
+      has_full_article_text: !!caseStudy.full_article_text,
+      full_article_text_length: caseStudy.full_article_text?.length || 0,
       has_embedding: !!(caseStudy.embedding && caseStudy.embedding.length > 0),
       embedding_model: caseStudy.embedding_model || null,
       embedding_generated_at: formatTimestamp(caseStudy.embedding_generated_at),
