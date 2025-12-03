@@ -142,10 +142,12 @@ export async function sendSupportEmail(
   // Always send internal notification to support team
   const internalTemplate = config.emailTemplates.supportInternal;
   const internalBody = internalTemplate.body
-    .replace('{firstName}', firstName)
-    .replace('{company}', lead.submission.company)
-    .replace('{email}', lead.submission.email)
-    .replace('{message}', lead.submission.message);
+    .replace(/{firstName}/g, firstName)
+    .replace(/{company}/g, lead.submission.company)
+    .replace(/{email}/g, lead.submission.email)
+    .replace(/{message}/g, lead.submission.message)
+    .replace(/{baseUrl}/g, getBaseUrl())
+    .replace(/{leadId}/g, lead.id);
 
   await sendEmail(
     {

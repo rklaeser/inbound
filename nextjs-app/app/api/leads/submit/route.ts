@@ -10,6 +10,7 @@ import { workflowInbound } from "@/workflows/inbound";
 import { getConfiguration } from "@/lib/configuration-helpers";
 import { getCachedCaseStudies } from "@/lib/case-studies";
 import { detectExistingCustomer } from "@/lib/db/mock-crm";
+import { sendExistingEmail } from "@/lib/email/classification-emails";
 
 // Validation schema
 const leadFormSchema = z.object({
@@ -99,8 +100,23 @@ export async function POST(request: NextRequest) {
       };
 
       const leadRef = await adminDb.collection("leads").add(existingLead);
+      const leadWithId = { id: leadRef.id, ...existingLead } as Lead;
 
-      console.log(`[API] Existing customer lead ${leadRef.id} auto-forwarded to account team`);
+      // Send internal notification to account team
+      const config = await getConfiguration();
+      const testModeEmail = config.email.testMode ? config.email.testEmail : null;
+      const emailResult = await sendExistingEmail({
+        lead: leadWithId,
+        config,
+        testModeEmail,
+        skipCustomerEmail: !config.responseToLead.existing,
+      });
+
+      if (emailResult.success) {
+        console.log(`[API] Existing customer lead ${leadRef.id} forwarded to account team`);
+      } else {
+        console.error(`[API] Failed to send existing customer email for ${leadRef.id}:`, emailResult.error);
+      }
 
       return NextResponse.json({
         success: true,

@@ -11,9 +11,9 @@ export const CLASSIFICATION_PROMPT = `You are a lead qualification expert for a 
 
 Analyze the following lead inquiry and classify it into one of these categories:
 
-- **high-quality**: High-value potential customer with clear business need and buying intent
-- **low-quality**: Not a good fit (small company, limited budget, early-stage startup), ambiguous inquiries, or spam/test submissions
-- **support**: Someone asking for product support or help
+- **high-quality**: Potential customer with clear business need, buying intent, or interest in paid/enterprise features
+- **low-quality**: Spam, test submissions, completely ambiguous inquiries, or companies with no web presence
+- **support**: Someone asking for product support or help with no indication of upgrade/purchase interest
 
 Note: Existing customers are detected separately via CRM lookup before this classification runs.
 
@@ -23,7 +23,9 @@ Provide:
 
 CLASSIFICATION RULES:
 1. If company has no web presence or research shows "No results found"/"Search failed", classify as "low-quality" (never "high-quality").
-2. If an inquiry appears to be both a support request AND a new product/feature request, ignore the support classification and classify as "high-quality" or "low-quality" based on their business value, intent, and fit characteristics.
+2. If an inquiry appears to be both a support request AND mentions upgrading, enterprise features, or purchasing, classify as "high-quality".
+3. Team size alone is NOT a disqualifying factor - many valuable customers have small teams. Focus on the company's product, funding stage, and buying signals instead.
+4. Mentioning enterprise, upgrading, or paid features is a strong high-quality signal regardless of company size.
 
 When uncertain, prefer "high-quality".`;
 

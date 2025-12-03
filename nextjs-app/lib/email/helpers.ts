@@ -78,10 +78,8 @@ export function renderCaseStudiesHtml(caseStudies: MatchedCaseStudy[]): string {
   }
 
   const caseStudyCards = caseStudies.map(cs => {
-    // Logo HTML (larger, at top) - uses data URI for SVG
-    const logoHtml = cs.logoSvg
-      ? `<img src="data:image/svg+xml;base64,${Buffer.from(cs.logoSvg).toString('base64')}" alt="${cs.company}" style="height: 32px; max-width: 140px; object-fit: contain; display: block; margin-bottom: 16px;" />`
-      : `<p style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #888;">${cs.company}</p>`;
+    // Company name as styled text (email clients block data URIs for security)
+    const logoHtml = `<p style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #000;">${cs.company}</p>`;
 
     // Featured text (gray, full width)
     const featuredTextHtml = cs.featuredText

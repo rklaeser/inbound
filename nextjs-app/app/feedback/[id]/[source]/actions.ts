@@ -75,13 +75,14 @@ export async function submitFeedback(
     const currentTerminalState = getTerminalState(lead);
 
     // Create reroute entry (preserves original classification and what was sent)
+    // Only include optional fields if they have values (Firestore rejects undefined)
     const reroute: Reroute = {
       id: crypto.randomUUID(),
       source: source as RerouteSource,
-      reason: reason?.trim() || undefined,
       originalClassification: currentClassification,
-      previousTerminalState: currentTerminalState || undefined,
       timestamp: now,
+      ...(reason?.trim() && { reason: reason.trim() }),
+      ...(currentTerminalState && { previousTerminalState: currentTerminalState }),
     };
 
     // Build the note prefix based on source
