@@ -518,3 +518,24 @@ export interface EmailGenerationResult {
   includedCaseStudies: string[]; // Company names mentioned in the email
   responseStyle?: ResponseStyle; // The response style used (demo, trial, or qualifying)
 }
+
+// =============================================================================
+// CLASSIFICATION EXAMPLES (for few-shot learning)
+// =============================================================================
+
+export type ExampleStatus = 'active' | 'inactive';
+
+export interface ClassificationExample {
+  id: string;
+  lead_snapshot: {
+    submission: { leadName: string; email: string; company: string; message: string; };
+    research_report: string;
+  };
+  classification: Classification;
+  sdr_reasoning: string;
+  status: ExampleStatus;
+  source_lead_id: string;
+  created_by: string;
+  created_at: Date | Timestamp;
+  updated_at: Date | Timestamp;
+}

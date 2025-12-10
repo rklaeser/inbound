@@ -11,6 +11,7 @@ import { calculateTTR } from '@/lib/date-utils';
 import { getSDRAvatarUrl } from '@/lib/sdr-profiles';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { CaseStudyEditor } from '@/components/dashboard/CaseStudyEditor';
+import { ImproveAISection } from '@/components/dashboard/ImproveAISection';
 import { ChevronRight, Check } from 'lucide-react';
 import { Attribution } from '@/components/shared/Attribution';
 import { Button } from '@/components/ui/button';
@@ -1132,6 +1133,14 @@ export default function LeadDetailPage({
             })()}
           </div>
         </Section>
+
+        {/* Improve AI Section - Show for done leads */}
+        {lead.status.status === 'done' && configuration && (
+          <ImproveAISection
+            leadId={lead.id}
+            createdBy={configuration.sdr?.name || DEFAULT_CONFIGURATION.sdr.name}
+          />
+        )}
 
       </div>
     </div>

@@ -112,4 +112,14 @@ export const testData = {
       message: 'We\'re having trouble with caching on our site - pages keep showing stale data after deployments. Is this a limitation of our plan or are we doing something wrong? We\'d consider upgrading to enterprise if that would fix it.',
     },
   },
+  cursorBorderlineSupport: {
+    label: 'New borderline support',
+    expectedClassification: 'high-quality' as const,
+    data: {
+      name: 'Aman Sanger',
+      email: 'aman@cursor.com',
+      company: 'Cursor',
+      message: 'Our preview deployments started taking 5+ minutes to build last week and we can\'t figure out why. Nothing changed on our end. Is there something wrong with Vercel or are we hitting some kind of limit? Open to upgrading if that would help.',
+    },
+  },
 } as const;

@@ -220,15 +220,27 @@ export async function qualifyLead(
   // This function only runs for non-existing customer leads.
   const { getConfiguration } = await import('./configuration-helpers');
   const { DEFAULT_CONFIGURATION } = await import('./types');
+  const { getActiveExamples, formatExamplesForPrompt } = await import('./examples-service');
+
   const configuration = await getConfiguration();
   const classificationPrompt = configuration.prompts?.classification || DEFAULT_CONFIGURATION.prompts.classification;
 
-  const { object } = await generateObject({
-    model: openai('gpt-4o'),
-    schema: classificationSchema,
-    prompt: `${classificationPrompt}
+  // Fetch active few-shot examples (max 5)
+  let examplesSection = '';
+  let examplesCount = 0;
+  try {
+    const activeExamples = await getActiveExamples(5);
+    examplesCount = activeExamples.length;
+    examplesSection = formatExamplesForPrompt(activeExamples);
+    console.log(`[qualifyLead] Loaded ${examplesCount} active examples for few-shot learning`);
+  } catch (error) {
+    console.error('[qualifyLead] Failed to fetch examples (non-fatal):', error);
+    // Continue without examples if fetch fails
+  }
 
-LEAD INFORMATION:
+  const fullPrompt = `${classificationPrompt}
+
+${examplesSection}LEAD INFORMATION:
 - Name: ${lead.name}
 - Email: ${lead.email}
 - Company: ${lead.company}
@@ -237,7 +249,20 @@ LEAD INFORMATION:
 RESEARCH FINDINGS:
 ${research}
 
-Classify this lead and provide your confidence score and reasoning.`
+Classify this lead and provide your confidence score and reasoning.`;
+
+  console.log('[qualifyLead] Classification prompt:', fullPrompt);
+
+  const { object } = await generateObject({
+    model: openai('gpt-4o'),
+    schema: classificationSchema,
+    prompt: fullPrompt
+  });
+
+  console.log('[qualifyLead] Classification result:', {
+    classification: object.classification,
+    confidence: object.confidence,
+    examplesUsed: examplesCount,
   });
 
   return {

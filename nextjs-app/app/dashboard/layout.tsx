@@ -9,7 +9,7 @@ import { db } from '@/lib/db/client';
 import { useDeveloperMode } from '@/lib/DeveloperModeContext';
 import { useTheme } from 'next-themes';
 
-type TabValue = 'leads' | 'analytics' | 'settings' | 'case-studies';
+type TabValue = 'leads' | 'analytics' | 'settings' | 'case-studies' | 'examples';
 
 export default function DashboardLayout({
   children,
@@ -104,6 +104,7 @@ export default function DashboardLayout({
     if (pathname.startsWith('/dashboard/analytics')) return 'analytics';
     if (pathname.startsWith('/dashboard/settings')) return 'settings';
     if (pathname.startsWith('/dashboard/case-studies')) return 'case-studies';
+    if (pathname.startsWith('/dashboard/examples')) return 'examples';
     return 'leads';
   };
 
@@ -113,6 +114,7 @@ export default function DashboardLayout({
     { value: 'leads' as TabValue, label: 'Leads', path: '/dashboard' },
     { value: 'analytics' as TabValue, label: 'Analytics', path: '/dashboard/analytics' },
     ...(caseStudiesEnabled ? [{ value: 'case-studies' as TabValue, label: 'Case Studies', path: '/dashboard/case-studies' }] : []),
+    { value: 'examples' as TabValue, label: 'Examples', path: '/dashboard/examples' },
     { value: 'settings' as TabValue, label: 'Settings', path: '/dashboard/settings' },
   ];
 
